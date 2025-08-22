@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  nfl-picks:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_PATH=/app/data/database.sqlite
+      - JWT_SECRET=your-production-jwt-secret-change-this
+      - JWT_EXPIRES_IN=7d
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
