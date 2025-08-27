@@ -28,6 +28,11 @@ export const routes: Routes = [
   },
   {
     path: 'results',
+    loadComponent: () => import('./features/results-grid/results-grid.component').then(m => m.ResultsGridComponent),
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'score',
     loadComponent: () => import('./features/results/results.component').then(m => m.ResultsComponent),
     canActivate: [AuthGuard]
   },

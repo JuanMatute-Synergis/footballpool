@@ -36,3 +36,20 @@ body {
            bg-white dark:bg-gray-700 text-gray-900 dark:text-white;
   }
 }
+
+/* Team logo image styles */
+img[src*="team-logos"], img[src*="teamlogos"] {
+  background-color: transparent;
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Fallback for broken images */
+img[alt]::before {
+  content: "🏈";
+  display: inline-block;
+  font-size: 0.8em;
+}

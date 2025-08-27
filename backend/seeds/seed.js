@@ -36,23 +36,12 @@ async function seedDatabase() {
     console.log('✅ Created sample users (password: password123)');
     users.forEach(user => console.log(`   - ${user.email}`));
 
-    // Import NFL API service to create teams and games
-    const nflApiService = require('../src/services/nfl-api');
-    
-    console.log('🏈 Creating NFL teams...');
-    await nflApiService.createMockTeams();
-    
-    console.log('🏈 Creating current week schedule...');
-    const { week, season } = nflApiService.getCurrentWeek();
-    await nflApiService.fetchWeekSchedule(week, season);
-
-    console.log('✅ Database seeding completed successfully!');
-    console.log('\n📋 Summary:');
-    console.log('- Admin user: admin@nflpicks.com / admin123');
-    console.log('- Sample users: password123');
-    console.log('- NFL teams: 32 teams created');
-    console.log(`- Games: Week ${week} ${season} schedule created`);
-    console.log('\n🚀 You can now start the application!');
+  // Finished creating users. Skipping mock NFL data creation per configuration.
+  console.log('✅ Database seeding completed (users created).');
+  console.log('\n📋 Summary:');
+  console.log('- Admin user: admin@nflpicks.com / admin123');
+  console.log('- Sample users: password123');
+  console.log('\n🚀 You can now start the application!');
 
   } catch (error) {
     console.error('❌ Error seeding database:', error);

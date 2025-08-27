@@ -1,11 +1,13 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { interval, Subject, takeUntil, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GameService } from '../../core/services/game.service';
 import { LeaderboardService } from '../../core/services/leaderboard.service';
-import { TeamLogoService } from '../../core/services/team-logo.service';
+import { HttpClient } from '@angular/common/http';
 import { Game, GamesResponse } from '../../core/models/game.model';
 import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.model';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-results',
@@ -88,7 +90,11 @@ import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.mo
                       <div class="flex items-center space-x-4">
                         <!-- Away Team -->
                         <div class="flex items-center space-x-3">
-                          <img [src]="teamLogoService.getTeamLogo(game.visitorTeam.abbreviation)" [alt]="game.visitorTeam.name" class="w-8 h-8">
+                          <img [src]="getTeamLogo(game.visitorTeam.abbreviation)" 
+                               [alt]="game.visitorTeam.name" 
+                               class="w-8 h-8 object-contain"
+                               (error)="handleImageError($event, game.visitorTeam.abbreviation)"
+                               loading="lazy">
                           <div>
                             <div class="font-semibold" [class]="getTeamScoreClass(game.visitorTeam.score, game.homeTeam.score)">
                               {{ game.visitorTeam.name }}
@@ -104,7 +110,11 @@ import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.mo
 
                         <!-- Home Team -->
                         <div class="flex items-center space-x-3">
-                          <img [src]="teamLogoService.getTeamLogo(game.homeTeam.abbreviation)" [alt]="game.homeTeam.name" class="w-8 h-8">
+                          <img [src]="getTeamLogo(game.homeTeam.abbreviation)" 
+                               [alt]="game.homeTeam.name" 
+                               class="w-8 h-8 object-contain"
+                               (error)="handleImageError($event, game.homeTeam.abbreviation)"
+                               loading="lazy">
                           <div>
                             <div class="font-semibold" [class]="getTeamScoreClass(game.homeTeam.score, game.visitorTeam.score)">
                               {{ game.homeTeam.name }}
@@ -206,21 +216,58 @@ import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.mo
 export class ResultsComponent implements OnInit {
   private gameService = inject(GameService);
   private leaderboardService = inject(LeaderboardService);
-  public teamLogoService = inject(TeamLogoService);
+  private http = inject(HttpClient);
+  private baseUrl = environment.apiUrl;
+
 
   loading = false;
   error = '';
   
   currentSeason = new Date().getFullYear();
   selectedWeek = 1;
-  availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  availableWeeks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
   
   games: Game[] = [];
   weeklyWinner: WeeklyWinner | null = null;
   top3: LeaderboardEntry[] = [];
 
+  getTeamLogo(abbreviation: string): string {
+    // Simply return the server-side logo endpoint
+    // The server handles all caching and fallbacks internally
+    return `${this.baseUrl}/team-logos/${abbreviation?.toLowerCase()}_logo.png`;
+  }
+
+  private loadTeamLogos(): void {
+    // No longer needed - server handles everything
+    // Keep method for backward compatibility but it's now a no-op
+  }
+
   ngOnInit() {
     this.loadData();
+    this.startLivePolling();
+  }
+
+  private destroy$ = new Subject<void>();
+
+  startLivePolling() {
+    // Poll every 15 seconds for live updates
+    interval(15000)
+      .pipe(
+        takeUntil(this.destroy$),
+        switchMap(() => this.gameService.getLiveGames())
+      )
+      .subscribe({
+        next: (res) => {
+          // Only update if the live response matches the currently selected week/season
+          if (res.week === this.selectedWeek && res.season === this.currentSeason) {
+            this.games = res.games;
+          }
+        },
+        error: (err) => {
+          // Ignore transient live fetch errors; keep existing UI
+          console.warn('Live games polling error:', err);
+        }
+      });
   }
 
   loadData() {
@@ -311,5 +358,11 @@ export class ResultsComponent implements OnInit {
     const totalScore = completed.reduce((sum, game) => 
       sum + (game.homeTeam.score || 0) + (game.visitorTeam.score || 0), 0);
     return (totalScore / completed.length).toFixed(1);
+  }
+
+  handleImageError(event: Event, teamAbbreviation: string): void {
+    const imgElement = event.target as HTMLImageElement;
+    // Fallback to ESPN logo if server logo fails
+    imgElement.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviation?.toUpperCase()}.png`;
   }
 }

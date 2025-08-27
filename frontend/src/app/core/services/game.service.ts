@@ -21,4 +21,8 @@ export class GameService {
   getAllTeams(): Observable<{ teams: Team[] }> {
     return this.http.get<{ teams: Team[] }>(`${environment.apiUrl}/games/teams`);
   }
+
+  getLiveGames(): Observable<{ week: number; season: number; games: Game[] }> {
+    return this.http.get<{ week: number; season: number; games: Game[] }>(`${environment.apiUrl}/games/live`);
+  }
 }

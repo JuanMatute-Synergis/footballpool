@@ -447,6 +447,32 @@ const clearCache = async (req, res) => {
   }
 };
 
+const syncTeamLogos = async (req, res) => {
+  try {
+    const teamLogoService = require('../services/team-logo.service');
+    
+    console.log('Manual team logos sync requested by admin');
+    
+    // Fetch and cache team logos from TheSportsDB
+    const logoData = await teamLogoService.fetchAndCacheAllTeamLogos();
+    
+    // Note: No longer updating database URLs since we serve static files directly
+    
+    const totalLogos = Object.keys(logoData).length;
+    const cachedLogos = Object.values(logoData).filter(logo => logo.logoUrl && logo.logoUrl.startsWith('/')).length;
+    
+    res.json({ 
+      message: 'Team logos synced successfully',
+      totalTeams: totalLogos,
+      cachedLogos: cachedLogos,
+      fallbackLogos: totalLogos - cachedLogos
+    });
+  } catch (error) {
+    console.error('Error syncing team logos:', error);
+    res.status(500).json({ message: 'Failed to sync team logos' });
+  }
+};
+
 module.exports = {
   getAllUsers,
   createUser,
@@ -459,5 +485,6 @@ module.exports = {
   syncTeams,
   syncSchedule,
   syncFullSeason,
-  clearCache
+  clearCache,
+  syncTeamLogos
 };

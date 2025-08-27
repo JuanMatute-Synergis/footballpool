@@ -34,8 +34,14 @@ export class AuthService {
             resolve();
           },
           error: (error) => {
-            console.log('Token expired or invalid, logging out');
-            this.logout();
+            // Only logout on explicit unauthorized errors. Network or CORS errors shouldn't force logout.
+            const status = error?.status;
+            if (status === 401 || status === 403) {
+              console.log('Token expired or invalid, logging out');
+              this.logout();
+            } else {
+              console.log('Network/CORS error while verifying token, keeping local session until explicit auth failure');
+            }
             resolve();
           }
         });

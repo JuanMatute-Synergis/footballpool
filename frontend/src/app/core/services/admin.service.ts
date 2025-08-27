@@ -53,4 +53,13 @@ export class AdminService {
   recalculateScores(): Observable<void> {
     return this.http.post<void>(`${environment.apiUrl}/admin/recalculate-scores`, {});
   }
+
+  getAllPicks(week?: number, season?: number, userId?: number): Observable<{ picks: any[] }> {
+    const params: any = {};
+    if (week) params.week = week.toString();
+    if (season) params.season = season.toString();
+    if (userId) params.userId = userId.toString();
+
+    return this.http.get<{ picks: any[] }>(`${environment.apiUrl}/admin/picks`, { params });
+  }
 }

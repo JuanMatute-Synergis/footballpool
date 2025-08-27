@@ -191,8 +191,140 @@ const getAllTeams = async (req, res) => {
   }
 };
 
+const getTeamLogos = async (req, res) => {
+  try {
+    const teamLogoService = require('../services/team-logo.service');
+    
+    // Try to get cached logos first
+    let cachedLogos = await teamLogoService.getCachedTeamLogos();
+    
+    if (!cachedLogos) {
+      // If no cached logos, return fallback URLs
+      const teams = await getAllQuery('SELECT abbreviation, name FROM teams');
+      cachedLogos = {};
+      
+      teams.forEach(team => {
+        cachedLogos[team.abbreviation] = {
+          name: team.name,
+          abbreviation: team.abbreviation,
+          logoUrl: `https://a.espncdn.com/i/teamlogos/nfl/500/${team.abbreviation.toLowerCase()}.png`
+        };
+      });
+    }
+
+    res.json({ logos: cachedLogos });
+  } catch (error) {
+    console.error('Error getting team logos:', error);
+    res.status(500).json({ message: 'Failed to get team logos' });
+  }
+};
+
+const getLiveCurrentWeekGames = async (req, res) => {
+  try {
+    const { week, season } = nflApiService.getCurrentWeek();
+    // Read-only live fetch: get fresh games from API (with short cache) without upserting
+    let remoteGames;
+    try {
+      remoteGames = await nflApiService.fetchLiveGames(week, season);
+    } catch (err) {
+      console.error('Live fetch failed, falling back to DB or cache:', err.message || err);
+      // Fall back to DB if available
+      const fallback = await getAllQuery(`
+        SELECT 
+          g.*, 
+          ht.name as home_team_name, ht.city as home_team_city, ht.abbreviation as home_team_abbreviation, ht.logo_url as home_team_logo,
+          vt.name as visitor_team_name, vt.city as visitor_team_city, vt.abbreviation as visitor_team_abbreviation, vt.logo_url as visitor_team_logo
+        FROM games g
+        JOIN teams ht ON g.home_team_id = ht.id
+        JOIN teams vt ON g.visitor_team_id = vt.id
+        WHERE g.week = ? AND g.season = ?
+        ORDER BY g.date ASC
+      `, [week, season]);
+
+      return res.json({ week, season, games: fallback.map(g => ({
+        id: g.id,
+        date: g.date,
+        status: g.status,
+        isMonday: g.is_monday_night,
+        homeTeam: { id: g.home_team_id, name: g.home_team_name, abbreviation: g.home_team_abbreviation, logo: g.home_team_logo, score: g.home_team_score },
+        visitorTeam: { id: g.visitor_team_id, name: g.visitor_team_name, abbreviation: g.visitor_team_abbreviation, logo: g.visitor_team_logo, score: g.visitor_team_score }
+      })) });
+    }
+
+    // Attach team metadata from DB to remote games when possible
+    const teamRows = await getAllQuery('SELECT id, name, city, abbreviation, logo_url FROM teams');
+    const teamById = new Map(teamRows.map(t => [t.id, t]));
+
+    const payloadGames = remoteGames.map(g => {
+      const ht = teamById.get(g.home_team_id) || { id: g.home_team_id };
+      const vt = teamById.get(g.visitor_team_id) || { id: g.visitor_team_id };
+      return {
+        id: g.id,
+        date: g.date,
+        status: g.status,
+        isMonday: g.is_monday_night,
+        homeTeam: { id: ht.id, name: ht.name, abbreviation: ht.abbreviation, logo: ht.logo_url, score: g.home_team_score },
+        visitorTeam: { id: vt.id, name: vt.name, abbreviation: vt.abbreviation, logo: vt.logo_url, score: g.visitor_team_score }
+      };
+    });
+
+    res.json({ week, season, games: payloadGames });
+  } catch (error) {
+    console.error('Error getting live current week games:', error);
+    res.status(500).json({ message: 'Failed to get live games' });
+  }
+};
+
+const getTeamLogo = async (req, res) => {
+  try {
+    const { abbreviation } = req.params;
+    const teamLogoService = require('../services/team-logo.service');
+    const path = require('path');
+    const fs = require('fs').promises;
+    
+    // Convert abbreviation to uppercase for consistency
+    const teamAbbr = abbreviation.toUpperCase();
+    
+    // Try to get the logo from cache/file system first
+    const logoFilePath = path.join(__dirname, '../../public/team-logos', `${teamAbbr.toLowerCase()}_logo.png`);
+    
+    try {
+      // Check if cached file exists and is recent (within 7 days)
+      const stats = await fs.stat(logoFilePath);
+      const ageInHours = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60);
+      
+      if (ageInHours < (24 * 7)) { // 7 days cache
+        // Serve the cached file
+        return res.sendFile(logoFilePath);
+      }
+    } catch (statError) {
+      // File doesn't exist, continue to fetch from API
+    }
+    
+    // File doesn't exist or is too old, fetch from TheSportsDB
+    const logoUrl = await teamLogoService.getTeamLogoUrl(teamAbbr);
+    
+    if (logoUrl && logoUrl.startsWith('/team-logos/')) {
+      // Logo was successfully cached, serve it
+      const cachedFilePath = path.join(__dirname, '../../public/team-logos', `${teamAbbr.toLowerCase()}_logo.png`);
+      return res.sendFile(cachedFilePath);
+    }
+    
+    // Fallback to ESPN logo redirect
+    return res.redirect(`https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbr.toLowerCase()}.png`);
+    
+  } catch (error) {
+    console.error(`Error getting logo for ${req.params.abbreviation}:`, error);
+    // Fallback to ESPN logo redirect
+    return res.redirect(`https://a.espncdn.com/i/teamlogos/nfl/500/${req.params.abbreviation.toLowerCase()}.png`);
+  }
+};
+
 module.exports = {
   getCurrentWeekGames,
   getWeekGames,
-  getAllTeams
+  getLiveCurrentWeekGames,
+  getAllTeams,
+  getTeamLogos,
+  getTeamLogo
 };

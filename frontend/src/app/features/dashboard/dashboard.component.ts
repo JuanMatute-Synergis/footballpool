@@ -5,10 +5,11 @@ import { AuthService } from '../../core/services/auth.service';
 import { GameService } from '../../core/services/game.service';
 import { PickService } from '../../core/services/pick.service';
 import { LeaderboardService } from '../../core/services/leaderboard.service';
-import { TeamLogoService } from '../../core/services/team-logo.service';
+import { HttpClient } from '@angular/common/http';
 import { Game, GamesResponse } from '../../core/models/game.model';
 import { Pick, PicksResponse } from '../../core/models/pick.model';
 import { LeaderboardEntry } from '../../core/models/leaderboard.model';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-dashboard',
@@ -136,7 +137,23 @@ import { LeaderboardEntry } from '../../core/models/leaderboard.model';
                   <div *ngFor="let game of upcomingGames.slice(0, 3)" 
                        class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div class="flex items-center space-x-3">
-                      <div class="font-medium">{{ game.visitorTeam.name }} &#64; {{ game.homeTeam.name }}</div>
+                      <div class="flex items-center space-x-2">
+                        <img [src]="getTeamLogo(game.visitorTeam.abbreviation)" 
+                             [alt]="game.visitorTeam.name" 
+                             class="w-6 h-6 object-contain"
+                             (error)="handleImageError($event, game.visitorTeam.abbreviation)"
+                             loading="lazy">
+                        <span class="font-medium">{{ game.visitorTeam.name }}</span>
+                      </div>
+                      <span class="text-gray-400">&#64;</span>
+                      <div class="flex items-center space-x-2">
+                        <img [src]="getTeamLogo(game.homeTeam.abbreviation)" 
+                             [alt]="game.homeTeam.name" 
+                             class="w-6 h-6 object-contain"
+                             (error)="handleImageError($event, game.homeTeam.abbreviation)"
+                             loading="lazy">
+                        <span class="font-medium">{{ game.homeTeam.name }}</span>
+                      </div>
                       <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -252,7 +269,8 @@ export class DashboardComponent implements OnInit {
   private gameService = inject(GameService);
   private pickService = inject(PickService);
   private leaderboardService = inject(LeaderboardService);
-  public teamLogoService = inject(TeamLogoService);
+  private http = inject(HttpClient);
+  private baseUrl = environment.apiUrl;
 
   loading = true;
   error = '';
@@ -412,5 +430,29 @@ export class DashboardComponent implements OnInit {
   logout() {
     this.authService.logout();
     this.router.navigate(['/auth']);
+  }
+
+  getTeamLogo(abbreviation: string): string {
+    if (!abbreviation) return '';
+    // Simply return the server-side logo endpoint
+    return `${this.baseUrl}/team-logos/${abbreviation?.toLowerCase()}_logo.png`;
+  }
+
+  handleImageError(event: Event, teamAbbreviation: string): void {
+    const imgElement = event.target as HTMLImageElement;
+    console.log(`Logo failed to load for ${teamAbbreviation}, falling back to ESPN`);
+    // Fallback to ESPN logo if server logo fails
+    imgElement.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviation?.toUpperCase()}.png`;
+    
+    // If ESPN also fails, show a placeholder
+    imgElement.onerror = () => {
+      imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xNiA4QzEyLjY4NjMgOCAxMCAxMC42ODYzIDEwIDE0QzEwIDE3LjMxMzcgMTIuNjg2MyAyMCAxNiAyMEMxOS4zMTM3IDIwIDIyIDE3LjMxMzcgMjIgMTRDMjIgMTAuNjg2MyAxOS4zMTM3IDggMTYgOFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+Cg==';
+      imgElement.onerror = null; // Prevent infinite loop
+    };
+  }
+
+  private loadTeamLogos(): void {
+    // No longer needed - server handles everything
+    // Keep method for backward compatibility but it's now a no-op
   }
 }

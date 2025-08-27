@@ -3,8 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService } from '../../core/services/admin.service';
 import { GameService } from '../../core/services/game.service';
+import { HttpClient } from '@angular/common/http';
 import { User } from '../../core/models/user.model';
 import { Game, GamesResponse } from '../../core/models/game.model';
+import { environment } from '../../../environments/environment';
 
 interface AdminStats {
   totalUsers: number;
@@ -197,7 +199,23 @@ interface AdminStats {
                 <div class="flex justify-between items-start">
                   <div class="flex-1">
                     <div class="flex items-center space-x-4 mb-3">
-                      <div class="font-semibold">{{ game.visitorTeam.name }} &#64; {{ game.homeTeam.name }}</div>
+                      <div class="flex items-center space-x-3">
+                        <img [src]="getTeamLogo(game.visitorTeam.abbreviation)" 
+                             [alt]="game.visitorTeam.name" 
+                             class="w-8 h-8 object-contain"
+                             (error)="handleImageError($event, game.visitorTeam.abbreviation)"
+                             loading="lazy">
+                        <span class="font-semibold">{{ game.visitorTeam.name }}</span>
+                      </div>
+                      <span class="text-gray-400">&#64;</span>
+                      <div class="flex items-center space-x-3">
+                        <img [src]="getTeamLogo(game.homeTeam.abbreviation)" 
+                             [alt]="game.homeTeam.name" 
+                             class="w-8 h-8 object-contain"
+                             (error)="handleImageError($event, game.homeTeam.abbreviation)"
+                             loading="lazy">
+                        <span class="font-semibold">{{ game.homeTeam.name }}</span>
+                      </div>
                       <span [class]="getGameStatusClass(game.status)">{{ game.status }}</span>
                     </div>
                     <div class="text-sm text-gray-600">
@@ -298,6 +316,9 @@ interface AdminStats {
 export class AdminComponent implements OnInit {
   private adminService = inject(AdminService);
   private gameService = inject(GameService);
+  private http = inject(HttpClient);
+  private baseUrl = environment.apiUrl;
+
 
   activeTab: 'users' | 'games' | 'settings' = 'users';
   loading = false;
@@ -623,5 +644,22 @@ export class AdminComponent implements OnInit {
       default:
         return 'px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs';
     }
+  }
+
+  getTeamLogo(abbreviation: string): string {
+    // Simply return the server-side logo endpoint
+    // The server handles all caching and fallbacks internally
+    return `${this.baseUrl}/team-logos/${abbreviation?.toLowerCase()}_logo.png`;
+  }
+
+  handleImageError(event: Event, teamAbbreviation: string): void {
+    const imgElement = event.target as HTMLImageElement;
+    // Fallback to ESPN logo if server logo fails
+    imgElement.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviation?.toUpperCase()}.png`;
+  }
+
+  private loadTeamLogos(): void {
+    // No longer needed - server handles everything
+    // Keep method for backward compatibility but it's now a no-op
   }
 }

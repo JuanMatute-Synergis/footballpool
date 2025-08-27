@@ -3,9 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { GameService } from '../../core/services/game.service';
 import { PickService } from '../../core/services/pick.service';
-import { TeamLogoService } from '../../core/services/team-logo.service';
+import { HttpClient } from '@angular/common/http';
 import { Game } from '../../core/models/game.model';
 import { Pick } from '../../core/models/pick.model';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-picks',
@@ -80,12 +81,15 @@ import { Pick } from '../../core/models/pick.model';
                   </div>
 
                   <!-- Teams -->
-                  <div class="space-y-3">
+                <div class="space-y-3">
                     <!-- Visitor Team -->
-                    <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50" 
-                           [class.bg-blue-50]="getPickValue(game.id) === game.visitorTeam.id"
-                           [class.border-2]="getPickValue(game.id) === game.visitorTeam.id"
-                           [class.border-blue-500]="getPickValue(game.id) === game.visitorTeam.id">
+          <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50" 
+            [class.bg-blue-50]="getPickValue(game.id) === game.visitorTeam.id"
+            [class.border-2]="getPickValue(game.id) === game.visitorTeam.id"
+            [class.border-blue-500]="getPickValue(game.id) === game.visitorTeam.id"
+            [class.opacity-50]="isGameLocked(game)"
+            [class.pointer-events-none]="isGameLocked(game)"
+            [class.cursor-not-allowed]="isGameLocked(game)">
                       <input
                         type="radio"
                         [value]="game.visitorTeam.id"
@@ -93,9 +97,11 @@ import { Pick } from '../../core/models/pick.model';
                         [disabled]="isGameLocked(game)"
                         class="text-blue-600 focus:ring-blue-500">
                       <div class="flex items-center space-x-3 flex-1">
-                        <img [src]="teamLogoService.getTeamLogo(game.visitorTeam.abbreviation)" 
+                        <img [src]="getTeamLogo(game.visitorTeam.abbreviation)" 
                              [alt]="game.visitorTeam.name"
-                             class="w-8 h-8 object-contain">
+                             class="w-8 h-8 object-contain"
+                             (error)="handleImageError($event, game.visitorTeam.abbreviation)"
+                             loading="lazy">
                         <div class="flex-1">
                           <div class="font-medium">{{ game.visitorTeam.city }} {{ game.visitorTeam.name }}</div>
                           <div class="text-sm text-gray-500">&#64; {{ game.homeTeam.abbreviation }}</div>
@@ -107,10 +113,13 @@ import { Pick } from '../../core/models/pick.model';
                     </label>
 
                     <!-- Home Team -->
-                    <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50"
-                           [class.bg-blue-50]="getPickValue(game.id) === game.homeTeam.id"
-                           [class.border-2]="getPickValue(game.id) === game.homeTeam.id"
-                           [class.border-blue-500]="getPickValue(game.id) === game.homeTeam.id">
+          <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50"
+            [class.bg-blue-50]="getPickValue(game.id) === game.homeTeam.id"
+            [class.border-2]="getPickValue(game.id) === game.homeTeam.id"
+            [class.border-blue-500]="getPickValue(game.id) === game.homeTeam.id"
+            [class.opacity-50]="isGameLocked(game)"
+            [class.pointer-events-none]="isGameLocked(game)"
+            [class.cursor-not-allowed]="isGameLocked(game)">
                       <input
                         type="radio"
                         [value]="game.homeTeam.id"
@@ -118,9 +127,11 @@ import { Pick } from '../../core/models/pick.model';
                         [disabled]="isGameLocked(game)"
                         class="text-blue-600 focus:ring-blue-500">
                       <div class="flex items-center space-x-3 flex-1">
-                        <img [src]="teamLogoService.getTeamLogo(game.homeTeam.abbreviation)" 
+                        <img [src]="getTeamLogo(game.homeTeam.abbreviation)" 
                              [alt]="game.homeTeam.name"
-                             class="w-8 h-8 object-contain">
+                             class="w-8 h-8 object-contain"
+                             (error)="handleImageError($event, game.homeTeam.abbreviation)"
+                             loading="lazy">
                         <div class="flex-1">
                           <div class="font-medium">{{ game.homeTeam.city }} {{ game.homeTeam.name }}</div>
                           <div class="text-sm text-gray-500">vs {{ game.visitorTeam.abbreviation }}</div>
@@ -134,7 +145,8 @@ import { Pick } from '../../core/models/pick.model';
 
                   <!-- Monday Night Prediction -->
                   <div *ngIf="game.isMonday" class="mt-4 pt-4 border-t border-gray-200">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-2"
+                           [class.opacity-50]="isGameLocked(game)">
                       Total Score Prediction (Tie-breaker)
                     </label>
                     <input
@@ -144,6 +156,7 @@ import { Pick } from '../../core/models/pick.model';
                       placeholder="e.g., 45"
                       min="0"
                       max="100"
+                      [class.opacity-50]="isGameLocked(game)"
                       class="input-field">
                   </div>
 
@@ -189,8 +202,10 @@ import { Pick } from '../../core/models/pick.model';
 export class PicksComponent implements OnInit {
   private gameService = inject(GameService);
   private pickService = inject(PickService);
-  public teamLogoService = inject(TeamLogoService);
   private fb = inject(FormBuilder);
+  private http = inject(HttpClient);
+  private baseUrl = environment.apiUrl;
+  
 
   loading = true;
   error = '';
@@ -209,6 +224,17 @@ export class PicksComponent implements OnInit {
 
   get picksSubmitted(): number {
     return this.games.filter(game => this.getPickValue(game.id)).length;
+  }
+
+  getTeamLogo(abbreviation: string): string {
+    // Simply return the server-side logo endpoint
+    // The server handles all caching and fallbacks internally
+    return `${this.baseUrl}/team-logos/${abbreviation?.toLowerCase()}_logo.png`;
+  }
+
+  private loadTeamLogos(): void {
+    // No longer needed - server handles everything
+    // Keep method for backward compatibility but it's now a no-op
   }
 
   ngOnInit() {
@@ -369,5 +395,11 @@ export class PicksComponent implements OnInit {
     setTimeout(() => {
       this.submitting = false;
     }, 1000);
+  }
+
+  handleImageError(event: Event, teamAbbreviation: string): void {
+    const imgElement = event.target as HTMLImageElement;
+    // Fallback to ESPN logo if server logo fails
+    imgElement.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviation?.toUpperCase()}.png`;
   }
 }

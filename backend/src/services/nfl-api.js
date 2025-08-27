@@ -6,6 +6,29 @@ class NFLApiService {
     this.ballDontLieBaseUrl = 'https://api.balldontlie.io/nfl/v1';
     this.sportsDbBaseUrl = 'https://www.thesportsdb.com/api/v1/json';
     this.apiKey = process.env.BALLDONTLIE_API_KEY;
+  // In-memory cache for live endpoint to avoid frequent API calls (key -> { ts, data })
+  this.liveCache = new Map();
+    // In-memory sliding-window timestamps for outbound API calls to BallDon'tLie
+    this.apiRequestTimestamps = [];
+    this.apiRateLimitPerMinute = 5; // keep <= 5 per minute as requested
+  }
+
+  // Sliding-window rate limiter: returns true if a new API call is allowed, and records the timestamp
+  _allowAndRecordApiCall() {
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 60 seconds
+    // prune timestamps older than window
+    this.apiRequestTimestamps = this.apiRequestTimestamps.filter(t => (now - t) <= windowMs);
+    if (this.apiRequestTimestamps.length >= this.apiRateLimitPerMinute) {
+      return false;
+    }
+    this.apiRequestTimestamps.push(now);
+    return true;
+  }
+
+  // When true (or in production), do not generate or insert mock/fallback data.
+  noMockDataEnabled() {
+    return process.env.NO_MOCK_DATA === 'true' || process.env.NODE_ENV === 'production';
   }
 
   // Cache management
@@ -53,6 +76,10 @@ class NFLApiService {
         console.log('🔍 Fetching NFL teams from Ball Don\'t Lie API...');
         
         try {
+          if (!this._allowAndRecordApiCall()) {
+            console.warn('API request suppressed to respect rate limit (teams)');
+            throw new Error('Rate limit: suppressed teams request');
+          }
           const response = await axios.get(`${this.ballDontLieBaseUrl}/teams`, {
             headers: {
               'Authorization': this.apiKey
@@ -84,10 +111,10 @@ class NFLApiService {
         }
       }
 
-      // Fallback to NFL teams if API failed or no API key
+      // If no teams were returned from the API, do not create mock teams; return empty.
       if (!teams || teams.length === 0) {
-        console.log('Using fallback teams data...');
-        teams = await this.createNFLTeams();
+        console.error('No teams returned from API; mock team creation has been removed. Aborting team storage.');
+        return [];
       }
 
       // Store teams in database
@@ -114,8 +141,8 @@ class NFLApiService {
       return teams;
     } catch (error) {
       console.error('Error fetching teams:', error);
-      // Return NFL teams as fallback
-      return await this.createNFLTeams();
+      // Mock team creation removed — rethrow so callers handle failures explicitly
+      throw error;
     }
   }
 
@@ -169,6 +196,10 @@ class NFLApiService {
         console.log(`🔍 Fetching schedule for week ${week}, ${season} from Ball Don't Lie API...`);
         
         try {
+          if (!this._allowAndRecordApiCall()) {
+            console.warn(`API request suppressed to respect rate limit (schedule ${season} week ${week})`);
+            throw new Error('Rate limit: suppressed schedule request');
+          }
           const response = await axios.get(`${this.ballDontLieBaseUrl}/games`, {
             headers: {
               'Authorization': this.apiKey
@@ -216,6 +247,14 @@ class NFLApiService {
 
       // Only fall back to realistic schedule if API completely failed (no API key or network error)
       if (!games || games.length === 0) {
+        if (this.noMockDataEnabled()) {
+          // In production/no-mock mode we should not fabricate a schedule.
+          const reason = !this.apiKey ? 'no API key available' : 'API returned no data';
+          console.error(`No games returned for week ${week}, ${season} (${reason}) and mock data disabled. Aborting schedule creation.`);
+          // Throw so callers (scheduler/upgrade scripts) can handle the failure explicitly
+          throw new Error(`No schedule data available for week ${week}, ${season}`);
+        }
+
         if (!this.apiKey) {
           console.log(`⚠️ No API key available, creating realistic schedule for week ${week}, ${season}...`);
         } else {
@@ -251,6 +290,11 @@ class NFLApiService {
       return games;
     } catch (error) {
       console.error('Error fetching schedule:', error.message);
+      if (this.noMockDataEnabled()) {
+        // When mock data is disabled, rethrow so the caller can decide how to handle it.
+        throw error;
+      }
+
       // Create realistic schedule as fallback only on error
       console.log(`⚠️ Error occurred, creating realistic schedule for week ${week}, ${season}...`);
       return await this.createRealisticSchedule(week, season);
@@ -330,9 +374,8 @@ class NFLApiService {
     const teams = await getAllQuery('SELECT * FROM teams ORDER BY conference, division, name');
     
     if (teams.length < 32) {
-      // Create teams if none exist
-      await this.createNFLTeams();
-      return this.createRealisticSchedule(week, season);
+      // Cannot create realistic schedule without teams; mock team creation has been removed.
+      throw new Error('Insufficient teams in database to build a realistic schedule. Populate teams from API before creating schedules.');
     }
 
     const games = [];
@@ -452,68 +495,7 @@ class NFLApiService {
     return matchups;
   }
 
-  // Create NFL teams if none exist
-  async createNFLTeams() {
-    const mockTeams = [
-      { id: 1, name: 'Patriots', city: 'New England', abbreviation: 'NE', conference: 'AFC', division: 'East' },
-      { id: 2, name: 'Bills', city: 'Buffalo', abbreviation: 'BUF', conference: 'AFC', division: 'East' },
-      { id: 3, name: 'Dolphins', city: 'Miami', abbreviation: 'MIA', conference: 'AFC', division: 'East' },
-      { id: 4, name: 'Jets', city: 'New York', abbreviation: 'NYJ', conference: 'AFC', division: 'East' },
-      { id: 5, name: 'Ravens', city: 'Baltimore', abbreviation: 'BAL', conference: 'AFC', division: 'North' },
-      { id: 6, name: 'Browns', city: 'Cleveland', abbreviation: 'CLE', conference: 'AFC', division: 'North' },
-      { id: 7, name: 'Steelers', city: 'Pittsburgh', abbreviation: 'PIT', conference: 'AFC', division: 'North' },
-      { id: 8, name: 'Bengals', city: 'Cincinnati', abbreviation: 'CIN', conference: 'AFC', division: 'North' },
-      { id: 9, name: 'Texans', city: 'Houston', abbreviation: 'HOU', conference: 'AFC', division: 'South' },
-      { id: 10, name: 'Colts', city: 'Indianapolis', abbreviation: 'IND', conference: 'AFC', division: 'South' },
-      { id: 11, name: 'Jaguars', city: 'Jacksonville', abbreviation: 'JAX', conference: 'AFC', division: 'South' },
-      { id: 12, name: 'Titans', city: 'Tennessee', abbreviation: 'TEN', conference: 'AFC', division: 'South' },
-      { id: 13, name: 'Broncos', city: 'Denver', abbreviation: 'DEN', conference: 'AFC', division: 'West' },
-      { id: 14, name: 'Chiefs', city: 'Kansas City', abbreviation: 'KC', conference: 'AFC', division: 'West' },
-      { id: 15, name: 'Raiders', city: 'Las Vegas', abbreviation: 'LV', conference: 'AFC', division: 'West' },
-      { id: 16, name: 'Chargers', city: 'Los Angeles', abbreviation: 'LAC', conference: 'AFC', division: 'West' },
-      { id: 17, name: 'Cowboys', city: 'Dallas', abbreviation: 'DAL', conference: 'NFC', division: 'East' },
-      { id: 18, name: 'Giants', city: 'New York', abbreviation: 'NYG', conference: 'NFC', division: 'East' },
-      { id: 19, name: 'Eagles', city: 'Philadelphia', abbreviation: 'PHI', conference: 'NFC', division: 'East' },
-      { id: 20, name: 'Commanders', city: 'Washington', abbreviation: 'WAS', conference: 'NFC', division: 'East' },
-      { id: 21, name: 'Bears', city: 'Chicago', abbreviation: 'CHI', conference: 'NFC', division: 'North' },
-      { id: 22, name: 'Lions', city: 'Detroit', abbreviation: 'DET', conference: 'NFC', division: 'North' },
-      { id: 23, name: 'Packers', city: 'Green Bay', abbreviation: 'GB', conference: 'NFC', division: 'North' },
-      { id: 24, name: 'Vikings', city: 'Minnesota', abbreviation: 'MIN', conference: 'NFC', division: 'North' },
-      { id: 25, name: 'Falcons', city: 'Atlanta', abbreviation: 'ATL', conference: 'NFC', division: 'South' },
-      { id: 26, name: 'Panthers', city: 'Carolina', abbreviation: 'CAR', conference: 'NFC', division: 'South' },
-      { id: 27, name: 'Saints', city: 'New Orleans', abbreviation: 'NO', conference: 'NFC', division: 'South' },
-      { id: 28, name: 'Buccaneers', city: 'Tampa Bay', abbreviation: 'TB', conference: 'NFC', division: 'South' },
-      { id: 29, name: 'Cardinals', city: 'Arizona', abbreviation: 'ARI', conference: 'NFC', division: 'West' },
-      { id: 30, name: '49ers', city: 'San Francisco', abbreviation: 'SF', conference: 'NFC', division: 'West' },
-      { id: 31, name: 'Seahawks', city: 'Seattle', abbreviation: 'SEA', conference: 'NFC', division: 'West' },
-      { id: 32, name: 'Rams', city: 'Los Angeles', abbreviation: 'LAR', conference: 'NFC', division: 'West' }
-    ];
-
-    const teams = mockTeams.map(team => ({
-      ...team,
-      logo_url: `https://a.espncdn.com/i/teamlogos/nfl/500/${team.abbreviation.toLowerCase()}.png`
-    }));
-
-    for (const team of teams) {
-      await runQuery(
-        `INSERT OR REPLACE INTO teams 
-         (id, name, city, abbreviation, conference, division, logo_url) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          team.id,
-          team.name,
-          team.city,
-          team.abbreviation,
-          team.conference,
-          team.division,
-          team.logo_url
-        ]
-      );
-    }
-
-    console.log('Created NFL teams');
-    return teams;
-  }
+  // Mock team creation permanently removed. Teams must be provided by the Ball Don't Lie API or pre-populated.
 
   // Update game scores
   async updateGameScores(gameId, homeScore, visitorScore, status = 'final') {
@@ -527,6 +509,205 @@ class NFLApiService {
     } catch (error) {
       console.error('Error updating game scores:', error);
       throw error;
+    }
+  }
+
+  // Sync a week's schedule with the database: fetch from API and upsert differences
+  async syncWeekSchedule(week, season) {
+    try {
+      console.log(`Syncing schedule for week ${week}, ${season}...`);
+
+      // Ensure teams exist before syncing
+      const teams = await getAllQuery('SELECT id FROM teams');
+      if (!teams || teams.length < 32) {
+        throw new Error('Insufficient teams in database to sync schedule. Populate teams from API first.');
+      }
+
+      // Fetch fresh games from API (bypass cache for sync)
+      let response;
+      try {
+        if (!this._allowAndRecordApiCall()) {
+          console.warn(`API request suppressed to respect rate limit (sync ${season} week ${week})`);
+          throw new Error('Rate limit: suppressed sync request');
+        }
+        response = await axios.get(`${this.ballDontLieBaseUrl}/games`, {
+          headers: { 'Authorization': this.apiKey },
+          params: { 'seasons[]': season, 'weeks[]': week, 'per_page': 100 },
+          timeout: 15000
+        });
+      } catch (err) {
+        console.error('Failed to fetch games for sync:', err.message || err);
+        throw err;
+      }
+
+      const remoteGames = (response.data && response.data.data) ? response.data.data.map(g => ({
+        id: g.id,
+        week: g.week,
+        season: g.season,
+        home_team_id: g.home_team.id,
+        visitor_team_id: g.visitor_team.id,
+        date: g.date,
+        status: this.normalizeGameStatus(g.status),
+        home_team_score: g.home_team_score || null,
+        visitor_team_score: g.visitor_team_score || null,
+        is_monday_night: this.isMondayNightGame(g.date)
+      })) : [];
+
+      // Get local games for the week/season
+      const localGames = await getAllQuery('SELECT * FROM games WHERE week = ? AND season = ?', [week, season]);
+
+      // Index local games by external id
+      const localById = new Map(localGames.map(g => [g.id, g]));
+
+      // Upsert remote games
+      for (const rg of remoteGames) {
+        const existing = localById.get(rg.id);
+        if (existing) {
+          // Check for differences and update if needed
+          const needsUpdate = (
+            existing.home_team_id !== rg.home_team_id ||
+            existing.visitor_team_id !== rg.visitor_team_id ||
+            existing.date !== rg.date ||
+            existing.status !== rg.status
+          );
+
+          if (needsUpdate) {
+            await runQuery(
+              `UPDATE games SET home_team_id = ?, visitor_team_id = ?, date = ?, status = ?, home_team_score = ?, visitor_team_score = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [rg.home_team_id, rg.visitor_team_id, rg.date, rg.status, rg.home_team_score, rg.visitor_team_score, rg.id]
+            );
+            console.log(`Updated game ${rg.id}`);
+          }
+        } else {
+          // Insert new game
+          await runQuery(
+            `INSERT INTO games (id, week, season, home_team_id, visitor_team_id, date, status, home_team_score, visitor_team_score, is_monday_night) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+            [rg.id, rg.week, rg.season, rg.home_team_id, rg.visitor_team_id, rg.date, rg.status, rg.home_team_score, rg.visitor_team_score, rg.is_monday_night]
+          );
+          console.log(`Inserted new game ${rg.id}`);
+        }
+      }
+
+      // Remove local games that are no longer present in remote feed
+      const remoteIds = new Set(remoteGames.map(g => g.id));
+      for (const lg of localGames) {
+        if (!remoteIds.has(lg.id)) {
+          // Only delete if the game hasn't started (status = scheduled) to avoid removing historical records
+          if ((lg.status || 'scheduled') === 'scheduled') {
+            await runQuery('DELETE FROM games WHERE id = ?', [lg.id]);
+            console.log(`Removed local game ${lg.id} not present in remote feed`);
+          }
+        }
+      }
+
+      console.log(`Schedule sync for week ${week}, ${season} completed`);
+      return true;
+    } catch (error) {
+      console.error('Error during schedule sync:', error.message || error);
+      throw error;
+    }
+  }
+
+  // Read-only fetch of live games for a week/season. Does not upsert to DB.
+  // Uses a short in-memory cache (10s) and respects persistent rate-limit signals.
+  async fetchLiveGames(week, season) {
+    const key = `live_${season}_${week}`;
+    const now = Date.now();
+
+    // In-memory cache TTL: 10 seconds
+    const cached = this.liveCache.get(key);
+    if (cached && (now - cached.ts) < 10000) {
+      return cached.data;
+    }
+
+    const cacheKey = `schedule_${season}_${week}`;
+    const rateLimitKey = `ratelimit_${cacheKey}`;
+
+    // Check persistent rate-limit signal
+    const rateLimited = await this.getCachedData(rateLimitKey);
+    const persistentCached = await this.getCachedData(cacheKey);
+
+    if (rateLimited) {
+      console.log(`🔒 Live fetch skipped due to recent rate limit for ${season} week ${week}`);
+      if (persistentCached) {
+        this.liveCache.set(key, { ts: now, data: persistentCached });
+        return persistentCached;
+      }
+      throw new Error('Rate limited and no cached schedule available');
+    }
+
+    if (!this.apiKey) {
+      console.log('⚠️ No BALLDONTLIE_API_KEY set; returning cached schedule if available');
+      if (persistentCached) {
+        this.liveCache.set(key, { ts: now, data: persistentCached });
+        return persistentCached;
+      }
+      throw new Error('No API key available for live fetch');
+    }
+
+    try {
+      if (!this._allowAndRecordApiCall()) {
+        console.warn(`API request suppressed to respect rate limit (live ${season} week ${week})`);
+        if (persistentCached) {
+          this.liveCache.set(key, { ts: now, data: persistentCached });
+          return persistentCached;
+        }
+        throw new Error('Rate limit: suppressed live request');
+      }
+      const response = await axios.get(`${this.ballDontLieBaseUrl}/games`, {
+        headers: { 'Authorization': this.apiKey },
+        params: { 'seasons[]': season, 'weeks[]': week, 'per_page': 100 },
+        timeout: 10000
+      });
+
+      const remoteGames = (response.data && response.data.data) ? response.data.data.map(game => ({
+        id: game.id,
+        week: game.week,
+        season: game.season,
+        home_team_id: game.home_team.id,
+        visitor_team_id: game.visitor_team.id,
+        date: game.date,
+        status: this.normalizeGameStatus(game.status),
+        home_team_score: game.home_team_score || null,
+        visitor_team_score: game.visitor_team_score || null,
+        is_monday_night: this.isMondayNightGame(game.date)
+      })) : [];
+
+      // Short-persist the result to the DB cache to help survive rate limits (10 seconds)
+      try {
+        await this.setCachedData(cacheKey, remoteGames, 0.003); // ~10.8 seconds
+      } catch (e) {
+        // Ignore cache write failures
+        console.warn('Failed to persist live schedule cache:', e.message || e);
+      }
+
+      this.liveCache.set(key, { ts: now, data: remoteGames });
+      return remoteGames;
+    } catch (err) {
+      console.error('Live fetch failed:', err.response?.status || err.message || err);
+
+      if (err.response && err.response.status === 429) {
+        // Persist a ratelimit signal for this schedule to avoid immediate retries
+        try {
+          await this.setCachedData(rateLimitKey, { rateLimited: true }, 1); // 1 hour cooldown
+        } catch (e) {
+          console.warn('Failed to persist rate limit key:', e.message || e);
+        }
+
+        if (persistentCached) {
+          this.liveCache.set(key, { ts: now, data: persistentCached });
+          return persistentCached;
+        }
+        throw new Error('Rate limited and no cached schedule available');
+      }
+
+      // If other network errors, fall back to persistent cache if present
+      if (persistentCached) {
+        this.liveCache.set(key, { ts: now, data: persistentCached });
+        return persistentCached;
+      }
+
+      throw err;
     }
   }
 }

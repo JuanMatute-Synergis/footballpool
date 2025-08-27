@@ -6,7 +6,8 @@ const authenticateToken = async (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
+  console.warn(`Auth: missing token for request ${req.method} ${req.path} origin=${req.headers.origin || 'unknown'}`);
+  return res.status(401).json({ message: 'Access token required' });
   }
 
   try {
@@ -25,8 +26,8 @@ const authenticateToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    console.error('Token verification error:', error);
-    return res.status(403).json({ message: 'Invalid or expired token' });
+  console.warn(`Token verification failed for request ${req.method} ${req.path} origin=${req.headers.origin || 'unknown'} - ${error.message}`);
+  return res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
 

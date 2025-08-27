@@ -24,6 +24,7 @@ router.put('/games/:gameId/scores', adminController.updateGameScores);
 router.post('/sync/teams', adminController.syncTeams);
 router.post('/sync/schedule', adminController.syncSchedule);
 router.post('/sync/full-season', adminController.syncFullSeason);
+router.post('/sync/team-logos', adminController.syncTeamLogos);
 router.post('/clear-cache', adminController.clearCache);
 
 module.exports = router;

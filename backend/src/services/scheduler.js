@@ -18,16 +18,40 @@ function scheduleDataFetch() {
     try {
       const { week, season } = nflApiService.getCurrentWeek();
       
-      // Fetch current week and next week
-      await nflApiService.fetchWeekSchedule(week, season);
-      if (week < 18) {
-        await nflApiService.fetchWeekSchedule(week + 1, season);
-      }
-      
-      // Also refresh teams data
+      // Ensure teams are present before fetching schedules
       await nflApiService.fetchAndStoreTeams();
+
+      // Fetch current week and next week
+      try {
+        await nflApiService.fetchWeekSchedule(week, season);
+        if (week < 18) {
+          await nflApiService.fetchWeekSchedule(week + 1, season);
+        }
+      } catch (schedErr) {
+        // If we are in a no-mock-data/production environment, fetchWeekSchedule may throw.
+        // Log and continue — do not crash the scheduler.
+        console.error('Failed to fetch schedule during daily refresh:', schedErr.message);
+      }
     } catch (error) {
       console.error('Error in scheduled schedule refresh:', error);
+    }
+  });
+
+  // Periodic sync every 2 hours to detect schedule changes
+  cron.schedule('0 */2 * * *', async () => {
+    console.log('Running 2-hour schedule sync...');
+    try {
+      const { week, season } = nflApiService.getCurrentWeek();
+      try {
+        await nflApiService.syncWeekSchedule(week, season);
+        if (week < 18) {
+          await nflApiService.syncWeekSchedule(week + 1, season);
+        }
+      } catch (err) {
+        console.error('2-hour sync failed:', err.message);
+      }
+    } catch (error) {
+      console.error('Error running 2-hour schedule sync:', error);
     }
   });
 
