@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+// const rateLimit = require('express-rate-limit'); // Disabled - using API caching instead
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -28,16 +28,18 @@ const { scheduleDataFetch } = require('./services/scheduler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security middleware with relaxed image policies for team logos
+// Security middleware with Angular-compatible CSP
 app.use(helmet({
-  crossOriginEmbedderPolicy: false, // Allow images to be embedded cross-origin
-  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin resource sharing
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:", "http:"], // Allow images from any source
+      connectSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
       styleSrc: ["'self'", "'unsafe-inline'", "https:"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: [],
     },
@@ -60,22 +62,22 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, Postman, or curl requests)
     if (!origin) return callback(null, true);
-    
+
     // Allow all localhost origins during development
     if (process.env.NODE_ENV === 'development') {
       return callback(null, true);
     }
-    
+
     // Allow localhost on any port for development
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true);
     }
-    
+
     // Allow specific frontend URL from environment
     if (origin === (process.env.FRONTEND_URL || 'http://localhost:4200')) {
       return callback(null, true);
     }
-    
+
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -89,25 +91,28 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
-// Rate limiting (disabled in development)
+// Rate limiting completely disabled - using API caching instead
 let rateLimit429Count = 0;
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000)),
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req, res) => {
-    rateLimit429Count++;
-    console.warn(`Rate limit exceeded for ${req.ip} path=${req.path} origin=${req.headers.origin || 'unknown'}`);
-    res.status(429).json({ message: 'Too many requests from this IP, please try again later.' });
-  }
-});
+console.log('Rate limiting disabled - relying on comprehensive API caching');
 
-if (process.env.NODE_ENV === 'development') {
-  console.log('Rate limiter disabled in development');
-} else {
-  app.use(limiter);
-}
+// const limiter = rateLimit({
+//   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000)),
+//   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   handler: (req, res) => {
+//     rateLimit429Count++;
+//     console.warn(`Rate limit exceeded for ${req.ip} path=${req.path} origin=${req.headers.origin || 'unknown'}`);
+//     res.status(429).json({ message: 'Too many requests from this IP, please try again later.' });
+//   }
+// });
+
+// Rate limiting disabled entirely
+// if (process.env.NODE_ENV === 'development') {
+//   console.log('Rate limiter disabled in development');
+// } else {
+//   app.use(limiter);
+// }
 
 // Body parsing middleware
 app.use(express.json());
@@ -135,10 +140,38 @@ app.use('/api/picks', pickRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check endpoint
+// Health check endpoints
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), rateLimit429Count });
 });
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString(), rateLimit429Count });
+});
+
+// Serve Angular frontend in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the frontend dist folder
+  app.use(express.static(path.join(__dirname, '..', 'public'), {
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, path) => {
+      if (path.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      } else if (path.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+      }
+    }
+  }));
+
+  // Catch all handler: send back Angular's index.html file for any non-API routes
+  app.get('*', (req, res) => {
+    // Skip API routes
+    if (req.url.startsWith('/api/') || req.url.startsWith('/health') || req.url.startsWith('/team-logos/')) {
+      return res.status(404).json({ message: 'API route not found' });
+    }
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((error, req, res, next) => {
@@ -149,9 +182,9 @@ app.use((error, req, res, next) => {
   });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+// 404 handler for API routes only (frontend routes handled above)
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ message: 'API route not found' });
 });
 
 // Initialize database and start server
@@ -176,7 +209,7 @@ async function startServer() {
     // Start the data fetch scheduler
     scheduleDataFetch();
     console.log('Data fetch scheduler started');
-    
+
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

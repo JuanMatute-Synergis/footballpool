@@ -1,0 +1,17 @@
+tunnel: 64746180-e8db-4616-abfb-0433703b2645
+credentials-file: /Users/juanmatute/.cloudflared/64746180-e8db-4616-abfb-0433703b2645.json
+
+ingress:
+  # Test entry for NFL Picks app using different subdomain
+  - hostname: nflpicks.golfleaguemanager.app
+    service: http://localhost:3001
+  # Specific entry for NFL Picks app - must come before wildcard
+  - hostname: footballpool.golfleaguemanager.app
+    service: http://localhost:3001
+  # Support wildcard subdomains for multi-tenancy (existing apps)
+  - hostname: "*.golfleaguemanager.app"
+    service: http://localhost:4500
+  # Fallback for the main domain
+  - hostname: golfleaguemanager.app
+    service: http://localhost:4500
+  - service: http_status:404

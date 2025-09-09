@@ -8,7 +8,7 @@ import { User, CreateUserRequest, UpdateUserRequest } from '../models/user.model
   providedIn: 'root'
 })
 export class AdminService {
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   // Users
   getAllUsers(): Observable<{ users: User[] }> {
@@ -25,6 +25,12 @@ export class AdminService {
 
   deleteUser(userId: number): Observable<void> {
     return this.http.delete<void>(`${environment.apiUrl}/admin/users/${userId}`);
+  }
+
+  resetUserPassword(userId: number, newPassword: string): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${environment.apiUrl}/admin/users/${userId}/reset-password`, {
+      newPassword
+    });
   }
 
   // Games

@@ -8,15 +8,31 @@ export interface Team {
   logo?: string;
 }
 
+export interface QuarterScores {
+  q1: number | null;
+  q2: number | null;
+  q3: number | null;
+  q4: number | null;
+  ot: number | null;
+}
+
 export interface Game {
   id: number;
   week: number;
   season: number;
   date: string;
-  status: 'scheduled' | 'in_progress' | 'final';
+  status: 'scheduled' | 'in_progress' | 'final' | 'live';
   isMonday: boolean;
-  homeTeam: Team & { score?: number };
-  visitorTeam: Team & { score?: number };
+  quarterTimeRemaining?: string | null;
+  liveStatus?: string | null;
+  homeTeam: Team & {
+    score?: number;
+    quarters?: QuarterScores;
+  };
+  visitorTeam: Team & {
+    score?: number;
+    quarters?: QuarterScores;
+  };
 }
 
 export interface GamesResponse {

@@ -6,8 +6,8 @@ class NFLApiService {
     this.ballDontLieBaseUrl = 'https://api.balldontlie.io/nfl/v1';
     this.sportsDbBaseUrl = 'https://www.thesportsdb.com/api/v1/json';
     this.apiKey = process.env.BALLDONTLIE_API_KEY;
-  // In-memory cache for live endpoint to avoid frequent API calls (key -> { ts, data })
-  this.liveCache = new Map();
+    // In-memory cache for live endpoint to avoid frequent API calls (key -> { ts, data })
+    this.liveCache = new Map();
     // In-memory sliding-window timestamps for outbound API calls to BallDon'tLie
     this.apiRequestTimestamps = [];
     this.apiRateLimitPerMinute = 5; // keep <= 5 per minute as requested
@@ -55,7 +55,7 @@ class NFLApiService {
     try {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + hoursToExpire);
-      
+
       await runQuery(
         'INSERT OR REPLACE INTO api_cache (cache_key, data, expires_at) VALUES (?, ?, ?)',
         [key, JSON.stringify(data), expiresAt.toISOString()]
@@ -74,7 +74,7 @@ class NFLApiService {
 
       if (!teams && this.apiKey) {
         console.log('🔍 Fetching NFL teams from Ball Don\'t Lie API...');
-        
+
         try {
           if (!this._allowAndRecordApiCall()) {
             console.warn('API request suppressed to respect rate limit (teams)');
@@ -146,23 +146,34 @@ class NFLApiService {
     }
   }
 
-  // Get current NFL week
+  // Get current NFL week (allows picks for next week starting Tuesday)
   getCurrentWeek() {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth(); // 0-11 (0 = January)
-    
+
     // NFL season runs from September to February of the following year
     // Since we're in 2025, we want to show the upcoming 2025 season
-    
+
     let season, week;
-    
+
     if (currentMonth >= 8) {
       // September-December: current season
       season = currentYear;
       const seasonStart = new Date(currentYear, 8, 5); // September 5th (typical season start)
       const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
       week = Math.max(1, Math.min(weeksSinceStart + 1, 18));
+
+      // Allow picks for next week starting Tuesday (standard practice)
+      // Since games often start Thursday, users need time to make picks
+      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const currentWeekStart = this.getWeekStartDate(week, season);
+      const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
+
+      // If it's Tuesday (day 2) or later in the current week, allow picks for next week
+      if (dayOfWeek >= 2 && daysIntoWeek >= 2 && week < 18) {
+        week = week + 1;
+      }
     } else if (currentMonth <= 1) {
       // January-February: previous season (playoffs/Super Bowl)
       season = currentYear - 1;
@@ -173,8 +184,59 @@ class NFLApiService {
       season = currentYear;
       week = 1;
     }
-    
+
     return { week, season };
+  }
+
+  // Get current NFL week for dashboard display (changes on Wednesday to give users time to see results)
+  getCurrentWeekForDisplay() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11 (0 = January)
+
+    // NFL season runs from September to February of the following year
+    // Since we're in 2025, we want to show the upcoming 2025 season
+
+    let season, week;
+
+    if (currentMonth >= 8) {
+      // September-December: current season
+      season = currentYear;
+      const seasonStart = new Date(currentYear, 8, 5); // September 5th (typical season start)
+      const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
+      week = Math.max(1, Math.min(weeksSinceStart + 1, 18));
+
+      // Dashboard switches to next week on Wednesday (day 3)
+      // This gives users Tuesday to see previous week results while making new picks
+      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const currentWeekStart = this.getWeekStartDate(week, season);
+      const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
+
+      // If it's Wednesday (day 3) or later in the current week, show next week on dashboard
+      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < 18) {
+        week = week + 1;
+      }
+    } else if (currentMonth <= 1) {
+      // January-February: previous season (playoffs/Super Bowl)
+      season = currentYear - 1;
+      week = 18; // Assume we're in playoffs/post-season
+    } else {
+      // March-August: Show upcoming season for display
+      // Since we're in 2025, show 2025 Season Week 1 for display
+      season = currentYear;
+      week = 1;
+    }
+
+    return { week, season };
+  }
+
+  // Check if next week picks are available (Tuesday onwards - standard practice)
+  isNextWeekPicksAvailable() {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+    // Allow next week picks from Tuesday (day 2) onwards
+    return dayOfWeek >= 2;
   }
 
   // Fetch NFL schedule for a specific week
@@ -186,7 +248,7 @@ class NFLApiService {
       // Check if we're currently rate limited
       const rateLimitKey = `ratelimit_${cacheKey}`;
       const rateLimited = await this.getCachedData(rateLimitKey);
-      
+
       if (rateLimited && !games) {
         console.log('⚠️ Rate limited - using fallback data...');
         return await this.createRealisticSchedule(week, season);
@@ -194,7 +256,7 @@ class NFLApiService {
 
       if (!games && this.apiKey) {
         console.log(`🔍 Fetching schedule for week ${week}, ${season} from Ball Don't Lie API...`);
-        
+
         try {
           if (!this._allowAndRecordApiCall()) {
             console.warn(`API request suppressed to respect rate limit (schedule ${season} week ${week})`);
@@ -215,18 +277,33 @@ class NFLApiService {
           console.log(`🌐 API response: ${response.status}, games found: ${response.data?.data?.length || 0}`);
 
           if (response.data && response.data.data && response.data.data.length > 0) {
-            games = response.data.data.map(game => ({
-              id: game.id,
-              week: game.week,
-              season: game.season,
-              home_team_id: game.home_team.id,
-              visitor_team_id: game.visitor_team.id,
-              date: game.date,
-              status: this.normalizeGameStatus(game.status),
-              home_team_score: game.home_team_score,
-              visitor_team_score: game.visitor_team_score,
-              is_monday_night: this.isMondayNightGame(game.date)
-            }));
+            games = response.data.data.map(game => {
+              const quarterInfo = this.parseQuarterTimeInfo(game.status);
+              return {
+                id: game.id,
+                week: game.week,
+                season: game.season,
+                home_team_id: game.home_team.id,
+                visitor_team_id: game.visitor_team.id,
+                date: game.date,
+                status: this.normalizeGameStatus(game.status),
+                live_status: quarterInfo.fullStatus,
+                home_team_score: game.home_team_score,
+                visitor_team_score: game.visitor_team_score,
+                home_team_q1: game.home_team_q1 || null,
+                home_team_q2: game.home_team_q2 || null,
+                home_team_q3: game.home_team_q3 || null,
+                home_team_q4: game.home_team_q4 || null,
+                home_team_ot: game.home_team_ot || null,
+                visitor_team_q1: game.visitor_team_q1 || null,
+                visitor_team_q2: game.visitor_team_q2 || null,
+                visitor_team_q3: game.visitor_team_q3 || null,
+                visitor_team_q4: game.visitor_team_q4 || null,
+                visitor_team_ot: game.visitor_team_ot || null,
+                quarter_time_remaining: quarterInfo.timeRemaining,
+                is_monday_night: this.isMondayNightGame(game.date)
+              };
+            });
 
             await this.setCachedData(cacheKey, games, 24); // Cache for 24 hours
             console.log(`✅ Successfully fetched and cached ${games.length} real games from API`);
@@ -268,8 +345,11 @@ class NFLApiService {
         for (const game of games) {
           await runQuery(
             `INSERT OR REPLACE INTO games 
-             (id, week, season, home_team_id, visitor_team_id, date, status, home_team_score, visitor_team_score, is_monday_night) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, week, season, home_team_id, visitor_team_id, date, status, live_status, home_team_score, visitor_team_score, 
+              home_team_q1, home_team_q2, home_team_q3, home_team_q4, home_team_ot,
+              visitor_team_q1, visitor_team_q2, visitor_team_q3, visitor_team_q4, visitor_team_ot,
+              quarter_time_remaining, is_monday_night) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               game.id,
               game.week,
@@ -278,8 +358,20 @@ class NFLApiService {
               game.visitor_team_id,
               game.date,
               game.status,
+              game.live_status,
               game.home_team_score || null,
               game.visitor_team_score || null,
+              game.home_team_q1,
+              game.home_team_q2,
+              game.home_team_q3,
+              game.home_team_q4,
+              game.home_team_ot,
+              game.visitor_team_q1,
+              game.visitor_team_q2,
+              game.visitor_team_q3,
+              game.visitor_team_q4,
+              game.visitor_team_ot,
+              game.quarter_time_remaining,
               game.is_monday_night
             ]
           );
@@ -304,13 +396,26 @@ class NFLApiService {
   // Helper method to normalize game status from API
   normalizeGameStatus(status) {
     if (!status) return 'scheduled';
-    
+
     const statusLower = status.toLowerCase();
-    
+
     if (statusLower.includes('final')) return 'final';
-    if (statusLower.includes('scheduled') || statusLower.includes('pm') || statusLower.includes('am')) return 'scheduled';
+
+    // Check for halftime
+    if (statusLower.includes('halftime') || statusLower.includes('half time')) return 'live';
+
+    // Check for live game patterns: "4:57 - 4th", "12:30 - 2nd", etc.
+    if (status.match(/^\d{1,2}:\d{2}\s*-\s*\d+(?:st|nd|rd|th)$/)) return 'live';
+
+    // Check for other live patterns
     if (statusLower.includes('live') || statusLower.includes('q1') || statusLower.includes('q2') || statusLower.includes('q3') || statusLower.includes('q4')) return 'live';
-    
+
+    // Check for overtime
+    if (statusLower.includes('ot') || statusLower.includes('overtime')) return 'live';
+
+    // Schedule patterns (times, dates)
+    if (statusLower.includes('scheduled') || statusLower.includes('pm') || statusLower.includes('am')) return 'scheduled';
+
     return 'scheduled'; // Default
   }
 
@@ -319,20 +424,20 @@ class NFLApiService {
     try {
       console.log(`🏈 Fetching full ${season} season schedule...`);
       const allGames = [];
-      
+
       // Fetch all 18 weeks of the regular season with rate limiting
       for (let week = 1; week <= 18; week++) {
         console.log(`  📅 Fetching week ${week}...`);
         const weekGames = await this.fetchWeekSchedule(week, season);
         allGames.push(...weekGames);
-        
+
         // Longer delay to avoid overwhelming the API (1 second between requests)
         if (week < 18) {
           console.log(`    ⏳ Waiting 1 second before next request...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
-      
+
       console.log(`✅ Fetched complete ${season} season: ${allGames.length} games`);
       return allGames;
     } catch (error) {
@@ -346,13 +451,13 @@ class NFLApiService {
     try {
       const { week, season } = this.getCurrentWeek();
       console.log(`Refreshing current season ${season} schedule data...`);
-      
+
       // Fetch full current season
       await this.fetchFullSeasonSchedule(season);
-      
+
       // Also fetch teams to ensure they're up to date
       await this.fetchAndStoreTeams();
-      
+
       console.log(`✅ Season ${season} data refresh completed`);
     } catch (error) {
       console.error('Error refreshing season schedule:', error);
@@ -363,23 +468,69 @@ class NFLApiService {
   // Helper method to determine if a game is Monday Night Football
   isMondayNightGame(gameDate) {
     const date = new Date(gameDate);
-    const day = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const hour = date.getHours();
-    return day === 1 && hour >= 19; // Monday after 7 PM
+
+    // Get the date in US Eastern timezone
+    const easternDate = new Date(date.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const day = easternDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const hour = easternDate.getHours();
+
+    // Alternative approach: check if it's a late game (after 11 PM UTC on Sunday/Monday)
+    // This catches Monday Night Football which is typically 8:15 PM ET = 1:15 AM UTC Tuesday
+    const utcDay = date.getDay();
+    const utcHour = date.getHours();
+    const isLateGame = (utcDay === 1 && utcHour >= 23) || (utcDay === 2 && utcHour <= 3);
+
+    // Monday Night Football: Either Monday evening in ET, or late UTC Sunday/early UTC Tuesday
+    return (day === 1 && hour >= 19) || isLateGame;
+  }
+
+  // Helper method to parse quarter time remaining from status
+  parseQuarterTimeInfo(status) {
+    if (!status) return { quarter: null, timeRemaining: null, fullStatus: null };
+
+    // Live game patterns: "4:57 - 4th", "12:30 - 2nd", "2:00 - 1st", etc.
+    const liveMatch = status.match(/^(\d{1,2}:\d{2})\s*-\s*(\d+)(?:st|nd|rd|th)$/);
+    if (liveMatch) {
+      return {
+        quarter: parseInt(liveMatch[2]),
+        timeRemaining: liveMatch[1],
+        fullStatus: status // Preserve the original status like "4:57 - 4th"
+      };
+    }
+
+    // Quarter-only patterns: "Q1", "Q2", "Q3", "Q4", "OT"
+    const quarterMatch = status.match(/^Q(\d+)$/i);
+    if (quarterMatch) {
+      return {
+        quarter: parseInt(quarterMatch[1]),
+        timeRemaining: null,
+        fullStatus: status
+      };
+    }
+
+    if (status.toLowerCase().includes('ot') || status.toLowerCase().includes('overtime')) {
+      return {
+        quarter: 5, // Treat OT as quarter 5
+        timeRemaining: null,
+        fullStatus: status
+      };
+    }
+
+    return { quarter: null, timeRemaining: null, fullStatus: status };
   }
 
   // Create realistic schedule data based on NFL scheduling patterns
   async createRealisticSchedule(week, season) {
     // Get teams from database
     const teams = await getAllQuery('SELECT * FROM teams ORDER BY conference, division, name');
-    
+
     if (teams.length < 32) {
       // Cannot create realistic schedule without teams; mock team creation has been removed.
       throw new Error('Insufficient teams in database to build a realistic schedule. Populate teams from API before creating schedules.');
     }
 
     const games = [];
-    
+
     // Create realistic game dates for the week
     const baseDate = this.getWeekStartDate(week, season);
     const gameTimes = [
@@ -403,15 +554,15 @@ class NFLApiService {
 
     // Create matchups using realistic NFL scheduling
     const matchups = this.createRealisticMatchups(teams, week);
-    
+
     for (let i = 0; i < Math.min(16, matchups.length); i++) {
       const matchup = matchups[i];
       const timeSlot = gameTimes[i] || gameTimes[0];
-      
+
       const gameDate = new Date(baseDate);
       gameDate.setDate(gameDate.getDate() + timeSlot.day);
       gameDate.setHours(timeSlot.hour, timeSlot.minute || 0, 0, 0);
-      
+
       const game = {
         id: parseInt(`${season}${week.toString().padStart(2, '0')}${(i + 1).toString().padStart(2, '0')}`),
         week,
@@ -422,7 +573,7 @@ class NFLApiService {
         status: 'scheduled',
         is_monday_night: timeSlot.day === 1 // Monday games
       };
-      
+
       games.push(game);
     }
 
@@ -434,16 +585,16 @@ class NFLApiService {
     // NFL season typically starts the first Sunday after Labor Day
     const seasonStart = new Date(season, 8, 1); // September 1st
     const firstSunday = new Date(seasonStart);
-    
+
     // Find first Sunday of September
     while (firstSunday.getDay() !== 0) {
       firstSunday.setDate(firstSunday.getDate() + 1);
     }
-    
+
     // Week 1 starts on the first Sunday, add weeks from there
     const weekStart = new Date(firstSunday);
     weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
-    
+
     return weekStart;
   }
 
@@ -451,7 +602,7 @@ class NFLApiService {
   createRealisticMatchups(teams, week) {
     const matchups = [];
     const usedTeams = new Set();
-    
+
     // Group teams by division for realistic matchups
     const divisions = {
       'AFC_East': teams.filter(t => t.conference === 'AFC' && t.division === 'East'),
@@ -466,7 +617,7 @@ class NFLApiService {
 
     // Create some divisional matchups and some cross-division matchups
     const divisionNames = Object.keys(divisions);
-    
+
     for (let i = 0; i < Math.min(8, divisionNames.length); i++) {
       const division = divisions[divisionNames[i]];
       if (division.length >= 2) {
@@ -497,14 +648,33 @@ class NFLApiService {
 
   // Mock team creation permanently removed. Teams must be provided by the Ball Don't Lie API or pre-populated.
 
-  // Update game scores
-  async updateGameScores(gameId, homeScore, visitorScore, status = 'final') {
+  // Update game scores with quarter information
+  async updateGameScores(gameId, homeScore, visitorScore, status = 'final', quarterData = null) {
     try {
-      await runQuery(
-        'UPDATE games SET home_team_score = ?, visitor_team_score = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [homeScore, visitorScore, status, gameId]
-      );
-      
+      let query, params;
+
+      if (quarterData) {
+        // Update with full quarter information
+        query = `UPDATE games SET 
+          home_team_score = ?, visitor_team_score = ?, status = ?, live_status = ?,
+          home_team_q1 = ?, home_team_q2 = ?, home_team_q3 = ?, home_team_q4 = ?, home_team_ot = ?,
+          visitor_team_q1 = ?, visitor_team_q2 = ?, visitor_team_q3 = ?, visitor_team_q4 = ?, visitor_team_ot = ?,
+          quarter_time_remaining = ?, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = ?`;
+        params = [
+          homeScore, visitorScore, status, quarterData.live_status,
+          quarterData.home_team_q1, quarterData.home_team_q2, quarterData.home_team_q3, quarterData.home_team_q4, quarterData.home_team_ot,
+          quarterData.visitor_team_q1, quarterData.visitor_team_q2, quarterData.visitor_team_q3, quarterData.visitor_team_q4, quarterData.visitor_team_ot,
+          quarterData.quarter_time_remaining,
+          gameId
+        ];
+      } else {
+        // Simple score update (backward compatibility)
+        query = 'UPDATE games SET home_team_score = ?, visitor_team_score = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        params = [homeScore, visitorScore, status, gameId];
+      }
+
+      await runQuery(query, params);
       console.log(`Updated game ${gameId} scores: ${homeScore}-${visitorScore}`);
     } catch (error) {
       console.error('Error updating game scores:', error);
@@ -581,7 +751,7 @@ class NFLApiService {
         } else {
           // Insert new game
           await runQuery(
-            `INSERT INTO games (id, week, season, home_team_id, visitor_team_id, date, status, home_team_score, visitor_team_score, is_monday_night) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+            `INSERT INTO games (id, week, season, home_team_id, visitor_team_id, date, status, home_team_score, visitor_team_score, is_monday_night) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [rg.id, rg.week, rg.season, rg.home_team_id, rg.visitor_team_id, rg.date, rg.status, rg.home_team_score, rg.visitor_team_score, rg.is_monday_night]
           );
           console.log(`Inserted new game ${rg.id}`);
@@ -660,18 +830,33 @@ class NFLApiService {
         timeout: 10000
       });
 
-      const remoteGames = (response.data && response.data.data) ? response.data.data.map(game => ({
-        id: game.id,
-        week: game.week,
-        season: game.season,
-        home_team_id: game.home_team.id,
-        visitor_team_id: game.visitor_team.id,
-        date: game.date,
-        status: this.normalizeGameStatus(game.status),
-        home_team_score: game.home_team_score || null,
-        visitor_team_score: game.visitor_team_score || null,
-        is_monday_night: this.isMondayNightGame(game.date)
-      })) : [];
+      const remoteGames = (response.data && response.data.data) ? response.data.data.map(game => {
+        const quarterInfo = this.parseQuarterTimeInfo(game.status);
+        return {
+          id: game.id,
+          week: game.week,
+          season: game.season,
+          home_team_id: game.home_team.id,
+          visitor_team_id: game.visitor_team.id,
+          date: game.date,
+          status: this.normalizeGameStatus(game.status),
+          live_status: quarterInfo.fullStatus,
+          home_team_score: game.home_team_score || null,
+          visitor_team_score: game.visitor_team_score || null,
+          home_team_q1: game.home_team_q1 || null,
+          home_team_q2: game.home_team_q2 || null,
+          home_team_q3: game.home_team_q3 || null,
+          home_team_q4: game.home_team_q4 || null,
+          home_team_ot: game.home_team_ot || null,
+          visitor_team_q1: game.visitor_team_q1 || null,
+          visitor_team_q2: game.visitor_team_q2 || null,
+          visitor_team_q3: game.visitor_team_q3 || null,
+          visitor_team_q4: game.visitor_team_q4 || null,
+          visitor_team_ot: game.visitor_team_ot || null,
+          quarter_time_remaining: quarterInfo.timeRemaining,
+          is_monday_night: this.isMondayNightGame(game.date)
+        };
+      }) : [];
 
       // Short-persist the result to the DB cache to help survive rate limits (10 seconds)
       try {

@@ -38,6 +38,7 @@ export interface WeeklyWinner {
   points: number;
   isTie: boolean;
   tieBreakerDiff?: number;
+  tiebreakerUsed?: boolean;
 }
 
 export interface UserStats {

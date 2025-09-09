@@ -4,32 +4,82 @@ const nflApiService = require('../services/nfl-api');
 const getWeeklyLeaderboard = async (req, res) => {
   try {
     const { week, season } = req.query;
-    
+    const userId = req.user?.id;
+    const isAdmin = req.user?.is_admin;
+
     let currentWeek = week;
     let currentSeason = season;
-    
+
     if (!currentWeek || !currentSeason) {
       const current = nflApiService.getCurrentWeek();
       currentWeek = current.week;
       currentSeason = current.season;
     }
 
-    const leaderboard = await getAllQuery(`
-      SELECT 
-        ws.*,
-        u.first_name,
-        u.last_name,
-        u.id as user_id,
-        RANK() OVER (ORDER BY ws.total_points DESC, ws.monday_night_diff ASC) as rank
-      FROM weekly_scores ws
-      JOIN users u ON ws.user_id = u.id
-      WHERE ws.week = ? AND ws.season = ?
-      ORDER BY ws.total_points DESC, ws.monday_night_diff ASC
+    // Get total games for the week
+    const totalGamesResult = await getAllQuery(`
+      SELECT COUNT(*) as total_games
+      FROM games 
+      WHERE week = ? AND season = ?
     `, [currentWeek, currentSeason]);
+
+    const totalGamesInWeek = totalGamesResult[0]?.total_games || 0;
+
+    let leaderboard;
+
+    if (isAdmin) {
+      // For admins, show ALL users with their pick counts (including 0 picks)
+      leaderboard = await getAllQuery(`
+        SELECT 
+          u.id as user_id,
+          u.first_name,
+          u.last_name,
+          COALESCE(ws.correct_picks, 0) as correct_picks,
+          COALESCE(pick_counts.picks_made, 0) as total_picks,
+          COALESCE(ws.bonus_points, 0) as bonus_points,
+          COALESCE(ws.total_points, 0) as total_points,
+          ws.monday_night_prediction,
+          ws.monday_night_actual,
+          ws.monday_night_diff,
+          ws.is_perfect_week,
+          RANK() OVER (ORDER BY COALESCE(ws.total_points, 0) DESC, COALESCE(ws.monday_night_diff, 999) ASC) as rank
+        FROM users u
+        LEFT JOIN weekly_scores ws ON ws.user_id = u.id AND ws.week = ? AND ws.season = ?
+        LEFT JOIN (
+          SELECT user_id, COUNT(*) as picks_made
+          FROM picks 
+          WHERE week = ? AND season = ?
+          GROUP BY user_id
+        ) pick_counts ON pick_counts.user_id = u.id
+        ORDER BY COALESCE(ws.total_points, 0) DESC, COALESCE(ws.monday_night_diff, 999) ASC
+      `, [currentWeek, currentSeason, currentWeek, currentSeason]);
+    } else {
+      // For regular users, only show users who have made picks
+      leaderboard = await getAllQuery(`
+        SELECT 
+          ws.*,
+          u.first_name,
+          u.last_name,
+          u.id as user_id,
+          COALESCE(pick_counts.picks_made, ws.total_picks) as total_picks,
+          RANK() OVER (ORDER BY ws.total_points DESC, ws.monday_night_diff ASC) as rank
+        FROM weekly_scores ws
+        JOIN users u ON ws.user_id = u.id
+        LEFT JOIN (
+          SELECT user_id, COUNT(*) as picks_made
+          FROM picks 
+          WHERE week = ? AND season = ?
+          GROUP BY user_id
+        ) pick_counts ON pick_counts.user_id = ws.user_id
+        WHERE ws.week = ? AND ws.season = ?
+        ORDER BY ws.total_points DESC, ws.monday_night_diff ASC
+      `, [currentWeek, currentSeason, currentWeek, currentSeason]);
+    }
 
     res.json({
       week: parseInt(currentWeek),
       season: parseInt(currentSeason),
+      totalGames: totalGamesInWeek,
       leaderboard: leaderboard.map(entry => ({
         rank: entry.rank,
         userId: entry.user_id,
@@ -54,7 +104,7 @@ const getWeeklyLeaderboard = async (req, res) => {
 const getSeasonLeaderboard = async (req, res) => {
   try {
     const { season } = req.query;
-    
+
     let currentSeason = season;
     if (!currentSeason) {
       currentSeason = nflApiService.getCurrentWeek().season;
@@ -104,18 +154,28 @@ const getSeasonLeaderboard = async (req, res) => {
 
 const getWeeklyWinners = async (req, res) => {
   try {
-    const { limit = 10 } = req.query;
+    const { limit = 10, season } = req.query;
 
-    const winners = await getAllQuery(`
+    let query = `
       SELECT 
         ww.*,
         u.first_name,
         u.last_name
       FROM weekly_winners ww
       JOIN users u ON ww.user_id = u.id
-      ORDER BY ww.season DESC, ww.week DESC
-      LIMIT ?
-    `, [parseInt(limit)]);
+    `;
+
+    let params = [];
+
+    if (season) {
+      query += ` WHERE ww.season = ?`;
+      params.push(parseInt(season));
+    }
+
+    query += ` ORDER BY ww.season DESC, ww.week DESC LIMIT ?`;
+    params.push(parseInt(limit));
+
+    const winners = await getAllQuery(query, params);
 
     res.json({
       winners: winners.map(winner => ({
@@ -126,7 +186,8 @@ const getWeeklyWinners = async (req, res) => {
         lastName: winner.last_name,
         points: winner.points,
         isTie: winner.is_tie,
-        tieBreakerDiff: winner.tie_breaker_diff
+        tieBreakerDiff: winner.tie_breaker_diff,
+        tiebreakerUsed: winner.tie_breaker_diff !== null && winner.tie_breaker_diff !== undefined
       }))
     });
   } catch (error) {
@@ -139,7 +200,7 @@ const getUserStats = async (req, res) => {
   try {
     const userId = req.user.id;
     const { season } = req.query;
-    
+
     let currentSeason = season;
     if (!currentSeason) {
       currentSeason = nflApiService.getCurrentWeek().season;
@@ -169,7 +230,7 @@ const getUserStats = async (req, res) => {
     `, [userId, currentSeason]);
 
     const stats = seasonStats[0] || {};
-    
+
     res.json({
       season: parseInt(currentSeason),
       userId,

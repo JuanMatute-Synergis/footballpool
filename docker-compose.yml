@@ -1,16 +1,25 @@
-version: '3.8'
-
 services:
   nfl-picks:
     build: .
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
+      - FRONTEND_URL=https://footballpool.golfleaguemanager.app
       - DATABASE_PATH=/app/data/database.sqlite
-      - JWT_SECRET=your-production-jwt-secret-change-this
+      - JWT_SECRET=nfl-picks-production-jwt-$(date +%s)-$(openssl rand -hex 16)
       - JWT_EXPIRES_IN=7d
+      - NO_MOCK_DATA=false
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - BALLDONTLIE_API_KEY=97cc6f24-7e97-4345-9a23-5d75130da168
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

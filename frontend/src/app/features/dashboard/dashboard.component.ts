@@ -116,6 +116,12 @@ import { environment } from '../../../environments/environment';
                 <p class="text-sm text-gray-600 mt-1">View game outcomes</p>
               </button>
               
+              <button (click)="router.navigate(['/profile'])" class="card p-4 text-center hover:shadow-lg transition-shadow cursor-pointer">
+                <div class="text-3xl mb-2">👤</div>
+                <h4 class="font-medium">Profile Settings</h4>
+                <p class="text-sm text-gray-600 mt-1">Change password & settings</p>
+              </button>
+              
               <button *ngIf="currentUser?.isAdmin" (click)="router.navigate(['/admin'])" class="card p-4 text-center hover:shadow-lg transition-shadow cursor-pointer">
                 <div class="text-3xl mb-2">⚙️</div>
                 <h4 class="font-medium">Admin Panel</h4>
@@ -128,31 +134,32 @@ import { environment } from '../../../environments/environment';
               <div class="p-6 border-b">
                 <div class="flex justify-between items-center">
                   <h3 class="text-lg font-semibold">Week {{ currentWeek }} Games</h3>
-                  <span class="text-sm text-gray-600">{{ completedGames }}/{{ totalGames }} completed</span>
+                  <span class="text-sm text-gray-600">{{ completedGamesCount }}/{{ totalGames }} completed</span>
                 </div>
               </div>
               
               <div class="p-6">
                 <div class="space-y-3">
+                  <!-- Show upcoming games first -->
                   <div *ngFor="let game of upcomingGames.slice(0, 3)" 
                        class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div class="flex items-center space-x-3">
                       <div class="flex items-center space-x-2">
-                        <img [src]="getTeamLogo(game.visitorTeam.abbreviation)" 
-                             [alt]="game.visitorTeam.name" 
+                        <img [src]="getTeamLogo(game.visitorTeam?.abbreviation || '')" 
+                             [alt]="game.visitorTeam?.name || 'Visitor Team'" 
                              class="w-6 h-6 object-contain"
-                             (error)="handleImageError($event, game.visitorTeam.abbreviation)"
+                             (error)="handleImageError($event, game.visitorTeam?.abbreviation || '')"
                              loading="lazy">
-                        <span class="font-medium">{{ game.visitorTeam.name }}</span>
+                        <span class="font-medium">{{ game.visitorTeam?.name || 'Unknown' }}</span>
                       </div>
                       <span class="text-gray-400">&#64;</span>
                       <div class="flex items-center space-x-2">
-                        <img [src]="getTeamLogo(game.homeTeam.abbreviation)" 
-                             [alt]="game.homeTeam.name" 
+                        <img [src]="getTeamLogo(game.homeTeam?.abbreviation || '')" 
+                             [alt]="game.homeTeam?.name || 'Home Team'" 
                              class="w-6 h-6 object-contain"
-                             (error)="handleImageError($event, game.homeTeam.abbreviation)"
+                             (error)="handleImageError($event, game.homeTeam?.abbreviation || '')"
                              loading="lazy">
-                        <span class="font-medium">{{ game.homeTeam.name }}</span>
+                        <span class="font-medium">{{ game.homeTeam?.name || 'Unknown' }}</span>
                       </div>
                       <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
                     </div>
@@ -162,8 +169,42 @@ import { environment } from '../../../environments/environment';
                     </div>
                   </div>
                   
-                  <div *ngIf="upcomingGames.length === 0" class="text-center py-4 text-gray-500">
-                    All games this week are completed
+                  <!-- If no upcoming games, show recent completed games -->
+                  <div *ngIf="upcomingGames.length === 0" class="space-y-3">
+                    <div class="text-center text-sm text-gray-600 mb-3">All games completed - Recent results:</div>
+                    <div *ngFor="let game of completedGames.slice(-3)" 
+                         class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div class="flex items-center space-x-3">
+                        <div class="flex items-center space-x-2">
+                          <img [src]="getTeamLogo(game.visitorTeam?.abbreviation || '')" 
+                               [alt]="game.visitorTeam?.name || 'Visitor Team'" 
+                               class="w-6 h-6 object-contain"
+                               (error)="handleImageError($event, game.visitorTeam?.abbreviation || '')"
+                               loading="lazy">
+                          <span class="font-medium">{{ game.visitorTeam?.name || 'Unknown' }}</span>
+                          <span class="text-sm font-mono">{{ game.visitorTeam?.score || 0 }}</span>
+                        </div>
+                        <span class="text-gray-400">&#64;</span>
+                        <div class="flex items-center space-x-2">
+                          <img [src]="getTeamLogo(game.homeTeam?.abbreviation || '')" 
+                               [alt]="game.homeTeam?.name || 'Home Team'" 
+                               class="w-6 h-6 object-contain"
+                               (error)="handleImageError($event, game.homeTeam?.abbreviation || '')"
+                               loading="lazy">
+                          <span class="font-medium">{{ game.homeTeam?.name || 'Unknown' }}</span>
+                          <span class="text-sm font-mono">{{ game.homeTeam?.score || 0 }}</span>
+                        </div>
+                        <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
+                      </div>
+                      <div class="flex items-center space-x-2">
+                        <span class="text-sm text-gray-600">Final</span>
+                        <span [class]="getPickStatusClass(game.id)">{{ getPickResult(game.id) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div *ngIf="upcomingGames.length === 0 && completedGames.length === 0" class="text-center py-4 text-gray-500">
+                    No games available for this week
                   </div>
                   
                   <div *ngIf="upcomingGames.length > 3" class="text-center pt-2">
@@ -225,12 +266,15 @@ import { environment } from '../../../environments/environment';
                          [class]="entry.userId === currentUser?.id ? 'bg-blue-50 -mx-3 px-3 py-2 rounded' : ''">
                       <div class="flex items-center space-x-3">
                         <div class="text-lg">
+                          <span *ngIf="i === 0 && getWeekWinner(currentWeek)?.userId === entry.userId" class="text-yellow-500">🏆</span>
                           {{ i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) }}
                         </div>
                         <div>
                           <div class="font-medium">
                             {{ entry.firstName }} {{ entry.lastName }}
                             <span *ngIf="entry.userId === currentUser?.id" class="text-blue-600 text-sm">(You)</span>
+                            <span *ngIf="i === 0 && getWeekWinner(currentWeek)?.userId === entry.userId" class="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">WINNER</span>
+                            <span *ngIf="hasWeeklyTiebreaker(currentWeek) && i === 0" class="ml-2 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded">Tiebreaker Used</span>
                           </div>
                           <div class="text-xs text-gray-500">{{ entry.correctPicks }}/{{ entry.totalPicks }} correct</div>
                         </div>
@@ -274,22 +318,23 @@ export class DashboardComponent implements OnInit {
 
   loading = true;
   error = '';
-  
+
   currentWeek = 1;
   currentSeason = new Date().getFullYear();
-  
+
   // Stats
   currentWeekPicks = 0;
   seasonCorrect = 0;
   seasonWrong = 0;
   currentRank = 0;
   totalPoints = 0;
-  
+
   // Games and picks
   upcomingGames: Game[] = [];
   completedGames: Game[] = [];
   userPicks: Pick[] = [];
   topPlayers: LeaderboardEntry[] = [];
+  weeklyWinners: any[] = [];
 
   get currentUser() {
     return this.authService.currentUser;
@@ -297,6 +342,10 @@ export class DashboardComponent implements OnInit {
 
   get totalGames(): number {
     return this.upcomingGames.length + this.completedGames.length;
+  }
+
+  get completedGamesCount(): number {
+    return this.completedGames.length;
   }
 
   get hasAllPicks(): boolean {
@@ -316,18 +365,27 @@ export class DashboardComponent implements OnInit {
     this.loading = true;
     this.error = '';
 
-    // Load current week games
-    this.gameService.getCurrentWeekGames().subscribe({
+    // Load current week games for display (switches to next week on Wednesday)
+    this.gameService.getCurrentWeekGamesForDisplay().subscribe({
       next: (response: GamesResponse) => {
         this.currentWeek = response.week;
+        this.currentSeason = response.season;
         this.upcomingGames = response.games.filter(g => g.status === 'scheduled');
         this.completedGames = response.games.filter(g => g.status === 'final');
-        
+
+        console.log('Dashboard loaded:', {
+          week: this.currentWeek,
+          season: this.currentSeason,
+          total: response.games.length,
+          upcoming: this.upcomingGames.length,
+          completed: this.completedGames.length
+        });
+
         // Add small delay before next request to avoid overwhelming the API
         setTimeout(() => {
           this.loadUserPicks();
         }, 300);
-        
+
         setTimeout(() => {
           this.loadLeaderboard();
         }, 600);
@@ -342,7 +400,7 @@ export class DashboardComponent implements OnInit {
 
   loadUserPicks() {
     if (!this.currentUser) return;
-    
+
     this.pickService.getUserPicks(this.currentWeek, this.currentSeason).subscribe({
       next: (response: PicksResponse) => {
         this.userPicks = response.picks;
@@ -365,13 +423,35 @@ export class DashboardComponent implements OnInit {
           this.currentRank = userEntry?.rank || 0;
           this.totalPoints = userEntry?.totalPoints || 0;
         }
-        this.loading = false;
+        this.loadWeeklyWinners();
       },
       error: (error: any) => {
         console.error('Error loading leaderboard:', error);
         this.loading = false;
       }
     });
+  }
+
+  loadWeeklyWinners() {
+    this.leaderboardService.getWeeklyWinners(this.currentSeason).subscribe({
+      next: (response) => {
+        this.weeklyWinners = response.winners;
+        this.loading = false;
+      },
+      error: (error: any) => {
+        console.error('Error loading weekly winners:', error);
+        this.loading = false;
+      }
+    });
+  }
+
+  getWeekWinner(week: number): any {
+    return this.weeklyWinners.find(w => w.week === week);
+  }
+
+  hasWeeklyTiebreaker(week: number): boolean {
+    const winner = this.getWeekWinner(week);
+    return winner && winner.tiebreakerUsed;
   }
 
   calculateStats() {
@@ -386,14 +466,14 @@ export class DashboardComponent implements OnInit {
     const date = new Date(gameTime);
     const now = new Date();
     const diffHours = (date.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
+
     if (diffHours < 24 && diffHours > 0) {
       return `Today ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     }
-    
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
+
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit'
@@ -407,8 +487,8 @@ export class DashboardComponent implements OnInit {
 
   getPickStatusClass(gameId: number): string {
     const pick = this.userPicks.find(p => p.gameId === gameId);
-    return pick 
-      ? 'px-2 py-1 bg-green-100 text-green-800 rounded text-xs' 
+    return pick
+      ? 'px-2 py-1 bg-green-100 text-green-800 rounded text-xs'
       : 'px-2 py-1 bg-red-100 text-red-800 rounded text-xs';
   }
 
@@ -422,8 +502,8 @@ export class DashboardComponent implements OnInit {
   getResultClass(gameId: number): string {
     const pick = this.userPicks.find(p => p.gameId === gameId);
     if (!pick || pick.isCorrect === null) return 'text-gray-500 text-xs';
-    return pick.isCorrect 
-      ? 'text-green-600 text-xs font-medium' 
+    return pick.isCorrect
+      ? 'text-green-600 text-xs font-medium'
       : 'text-red-600 text-xs font-medium';
   }
 
@@ -443,7 +523,7 @@ export class DashboardComponent implements OnInit {
     console.log(`Logo failed to load for ${teamAbbreviation}, falling back to ESPN`);
     // Fallback to ESPN logo if server logo fails
     imgElement.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviation?.toUpperCase()}.png`;
-    
+
     // If ESPN also fails, show a placeholder
     imgElement.onerror = () => {
       imgElement.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xNiA4QzEyLjY4NjMgOCAxMCAxMC42ODYzIDEwIDE0QzEwIDE3LjMxMzcgMTIuNjg2MyAyMCAxNiAyMEMxOS4zMTM3IDIwIDIyIDE3LjMxMzcgMjIgMTRDMjIgMTAuNjg2MyAxOS4zMTM3IDggMTYgOFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+Cg==';

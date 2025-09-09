@@ -7,6 +7,7 @@ import { HttpClient } from '@angular/common/http';
 import { User } from '../../core/models/user.model';
 import { Game, GamesResponse } from '../../core/models/game.model';
 import { environment } from '../../../environments/environment';
+import { NavigationComponent } from '../../shared/components/navigation.component';
 
 interface AdminStats {
   totalUsers: number;
@@ -18,18 +19,10 @@ interface AdminStats {
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NavigationComponent],
   template: `
     <div class="min-h-screen bg-gray-50">
-      <!-- Header -->
-      <div class="bg-white shadow">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="py-6">
-            <h1 class="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p class="mt-1 text-sm text-gray-500">Manage users, games, and system settings</p>
-          </div>
-        </div>
-      </div>
+      <app-navigation title="Admin Dashboard" subtitle="Manage users, games, and system settings"></app-navigation>
 
       <!-- Content -->
       <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -168,12 +161,36 @@ interface AdminStats {
                       {{ formatDate(user.createdAt) }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <button (click)="toggleUserStatus(user)" class="text-blue-600 hover:text-blue-800 mr-2">
-                        {{ user.isActive ? 'Deactivate' : 'Activate' }}
-                      </button>
-                      <button (click)="deleteUser(user.id)" class="text-red-600 hover:text-red-800">
-                        Delete
-                      </button>
+                      <div class="flex space-x-2">
+                        <button (click)="toggleUserStatus(user)" class="text-blue-600 hover:text-blue-800">
+                          {{ user.isActive ? 'Deactivate' : 'Activate' }}
+                        </button>
+                        <button (click)="togglePasswordReset(user.id)" class="text-green-600 hover:text-green-800">
+                          {{ showPasswordReset[user.id] ? 'Cancel' : 'Reset Password' }}
+                        </button>
+                        <button (click)="deleteUser(user.id)" class="text-red-600 hover:text-red-800">
+                          Delete
+                        </button>
+                      </div>
+                      
+                      <!-- Password Reset Form -->
+                      <div *ngIf="showPasswordReset[user.id]" class="mt-2 p-3 bg-gray-50 rounded border">
+                        <div class="flex items-center space-x-2">
+                          <input 
+                            type="password" 
+                            [(ngModel)]="resetPasswordData[user.id]" 
+                            placeholder="New password (min 6 chars)" 
+                            class="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            [name]="'resetPassword' + user.id">
+                          <button 
+                            (click)="resetUserPassword(user)" 
+                            [disabled]="resettingPassword[user.id] || !resetPasswordData[user.id] || resetPasswordData[user.id].length < 6"
+                            class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {{ resettingPassword[user.id] ? 'Resetting...' : 'Reset' }}
+                          </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Enter a new password for {{ user.firstName }} {{ user.lastName }}</p>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -324,7 +341,7 @@ export class AdminComponent implements OnInit {
   loading = false;
   error = '';
   success = '';
-  
+
   // Stats
   stats: AdminStats = {
     totalUsers: 0,
@@ -344,6 +361,11 @@ export class AdminComponent implements OnInit {
     password: '',
     isAdmin: false
   };
+
+  // Password Reset
+  showPasswordReset: { [key: number]: boolean } = {};
+  resetPasswordData: { [key: number]: string } = {};
+  resettingPassword: { [key: number]: boolean } = {};
 
   // Games
   games: Game[] = [];
@@ -453,7 +475,7 @@ export class AdminComponent implements OnInit {
 
   deleteUser(userId: number) {
     if (!confirm('Are you sure you want to delete this user?')) return;
-    
+
     this.adminService.deleteUser(userId).subscribe({
       next: () => {
         this.users = this.users.filter(u => u.id !== userId);
@@ -468,11 +490,44 @@ export class AdminComponent implements OnInit {
     });
   }
 
+  togglePasswordReset(userId: number) {
+    this.showPasswordReset[userId] = !this.showPasswordReset[userId];
+    if (!this.showPasswordReset[userId]) {
+      this.resetPasswordData[userId] = '';
+    }
+  }
+
+  resetUserPassword(user: User) {
+    const newPassword = this.resetPasswordData[user.id];
+    if (!newPassword || newPassword.length < 6) {
+      this.error = 'Password must be at least 6 characters long';
+      setTimeout(() => this.error = '', 3000);
+      return;
+    }
+
+    this.resettingPassword[user.id] = true;
+    this.adminService.resetUserPassword(user.id, newPassword).subscribe({
+      next: (response: { message: string }) => {
+        this.success = response.message;
+        this.resettingPassword[user.id] = false;
+        this.showPasswordReset[user.id] = false;
+        this.resetPasswordData[user.id] = '';
+        setTimeout(() => this.success = '', 5000);
+      },
+      error: (error: any) => {
+        console.error('Error resetting password:', error);
+        this.error = error.error?.message || 'Failed to reset password';
+        this.resettingPassword[user.id] = false;
+        setTimeout(() => this.error = '', 3000);
+      }
+    });
+  }
+
   // Games
   loadGames() {
     this.loading = true;
     const currentSeason = new Date().getFullYear();
-    
+
     this.gameService.getWeekGames(currentSeason, this.selectedWeek).subscribe({
       next: (response: GamesResponse) => {
         this.games = response.games;
@@ -580,7 +635,7 @@ export class AdminComponent implements OnInit {
 
   resetWeekPicks() {
     if (!confirm('Are you sure you want to reset all picks for the current week?')) return;
-    
+
     this.resetting = true;
     this.adminService.resetWeekPicks(this.currentWeekSetting).subscribe({
       next: () => {
@@ -624,9 +679,9 @@ export class AdminComponent implements OnInit {
   }
 
   formatGameTime(gameTime: string): string {
-    return new Date(gameTime).toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      month: 'short', 
+    return new Date(gameTime).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit'

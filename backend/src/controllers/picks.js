@@ -5,10 +5,10 @@ const getUserPicks = async (req, res) => {
   try {
     const userId = req.user.id;
     const { week, season } = req.query;
-    
+
     let currentWeek = week;
     let currentSeason = season;
-    
+
     if (!currentWeek || !currentSeason) {
       const current = nflApiService.getCurrentWeek();
       currentWeek = current.week;
@@ -20,6 +20,10 @@ const getUserPicks = async (req, res) => {
         p.*,
         g.date as game_date,
         g.status as game_status,
+        g.home_team_score,
+        g.visitor_team_score,
+        g.home_team_id,
+        g.visitor_team_id,
         ht.name as home_team_name,
         ht.abbreviation as home_team_abbreviation,
         vt.name as visitor_team_name,
@@ -38,24 +42,41 @@ const getUserPicks = async (req, res) => {
     res.json({
       week: parseInt(currentWeek),
       season: parseInt(currentSeason),
-      picks: picks.map(pick => ({
-        id: pick.id,
-        gameId: pick.game_id,
-        selectedTeamId: pick.selected_team_id,
-        selectedTeamName: pick.selected_team_name,
-        selectedTeamAbbreviation: pick.selected_team_abbreviation,
-        mondayNightPrediction: pick.monday_night_prediction,
-        gameDate: pick.game_date,
-        gameStatus: pick.game_status,
-        homeTeam: {
-          name: pick.home_team_name,
-          abbreviation: pick.home_team_abbreviation
-        },
-        visitorTeam: {
-          name: pick.visitor_team_name,
-          abbreviation: pick.visitor_team_abbreviation
+      picks: picks.map(pick => {
+        // Calculate if pick is correct
+        let isCorrect = null;
+        if (pick.game_status === 'final' && pick.home_team_score !== null && pick.visitor_team_score !== null) {
+          // Determine winning team
+          const winningTeamId = pick.home_team_score > pick.visitor_team_score
+            ? pick.home_team_id
+            : pick.visitor_team_score > pick.home_team_score
+              ? pick.visitor_team_id
+              : null; // Tie
+
+          // Check if pick was correct (handle ties as incorrect for simplicity)
+          isCorrect = winningTeamId && pick.selected_team_id === winningTeamId;
         }
-      }))
+
+        return {
+          id: pick.id,
+          gameId: pick.game_id,
+          selectedTeamId: pick.selected_team_id,
+          selectedTeamName: pick.selected_team_name,
+          selectedTeamAbbreviation: pick.selected_team_abbreviation,
+          mondayNightPrediction: pick.monday_night_prediction,
+          gameDate: pick.game_date,
+          gameStatus: pick.game_status,
+          isCorrect: isCorrect,
+          homeTeam: {
+            name: pick.home_team_name,
+            abbreviation: pick.home_team_abbreviation
+          },
+          visitorTeam: {
+            name: pick.visitor_team_name,
+            abbreviation: pick.visitor_team_abbreviation
+          }
+        };
+      })
     });
   } catch (error) {
     console.error('Error getting user picks:', error);
@@ -85,7 +106,7 @@ const submitPick = async (req, res) => {
     // Check if game has already started
     const gameDate = new Date(game.date);
     const now = new Date();
-    
+
     if (gameDate <= now && game.status !== 'scheduled') {
       return res.status(400).json({ message: 'Cannot make picks for games that have already started' });
     }
@@ -117,7 +138,7 @@ const getAllPicksForGame = async (req, res) => {
 
     // Get game details
     const game = await getQuery('SELECT * FROM games WHERE id = ?', [gameId]);
-    
+
     if (!game) {
       return res.status(404).json({ message: 'Game not found' });
     }
@@ -128,7 +149,7 @@ const getAllPicksForGame = async (req, res) => {
     const canSeeAllPicks = isAdmin || (gameDate <= now);
 
     let picks;
-    
+
     if (canSeeAllPicks) {
       // Get all picks for this game
       picks = await getAllQuery(`

@@ -13,8 +13,11 @@ const register = async (req, res) => {
       });
     }
 
+    // Normalize email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Check if email already exists
-    const existingUser = await getQuery('SELECT id FROM users WHERE email = ?', [email]);
+    const existingUser = await getQuery('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
     if (existingUser) {
       return res.status(400).json({ message: 'Email already registered' });
     }
@@ -26,7 +29,7 @@ const register = async (req, res) => {
     // Insert user
     const result = await runQuery(
       'INSERT INTO users (email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?)',
-      [email, passwordHash, firstName, lastName]
+      [normalizedEmail, passwordHash, firstName, lastName]
     );
 
     // Generate JWT token
@@ -41,7 +44,7 @@ const register = async (req, res) => {
       token,
       user: {
         id: result.id,
-        email,
+        email: normalizedEmail,
         firstName,
         lastName,
         isAdmin: false
@@ -61,10 +64,13 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    // Normalize email to lowercase for case-insensitive comparison
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Get user with password
     const user = await getQuery(
       'SELECT id, email, password_hash, first_name, last_name, is_admin FROM users WHERE email = ?',
-      [email]
+      [normalizedEmail]
     );
 
     if (!user) {
@@ -92,7 +98,7 @@ const login = async (req, res) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        isAdmin: user.is_admin
+        isAdmin: Boolean(user.is_admin)
       }
     });
   } catch (error) {
@@ -110,7 +116,7 @@ const getProfile = async (req, res) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        isAdmin: user.is_admin
+        isAdmin: Boolean(user.is_admin)
       }
     });
   } catch (error) {
@@ -119,8 +125,56 @@ const getProfile = async (req, res) => {
   }
 };
 
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    // Get current user with password
+    const user = await getQuery(
+      'SELECT id, password_hash FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    await runQuery(
+      'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [newPasswordHash, userId]
+    );
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: 'Failed to change password' });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getProfile
+  getProfile,
+  changePassword
 };

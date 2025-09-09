@@ -13,7 +13,7 @@ import {
   providedIn: 'root'
 })
 export class LeaderboardService {
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   getWeeklyLeaderboard(week?: number, season?: number): Observable<WeeklyLeaderboardResponse> {
     const params: any = {};
@@ -30,10 +30,11 @@ export class LeaderboardService {
     return this.http.get<SeasonLeaderboardResponse>(`${environment.apiUrl}/leaderboard/season`, { params });
   }
 
-  getWeeklyWinners(limit = 10): Observable<{ winners: WeeklyWinner[] }> {
-    return this.http.get<{ winners: WeeklyWinner[] }>(`${environment.apiUrl}/leaderboard/winners`, {
-      params: { limit: limit.toString() }
-    });
+  getWeeklyWinners(season?: number, limit = 10): Observable<{ winners: WeeklyWinner[] }> {
+    const params: any = { limit: limit.toString() };
+    if (season) params.season = season.toString();
+
+    return this.http.get<{ winners: WeeklyWinner[] }>(`${environment.apiUrl}/leaderboard/winners`, { params });
   }
 
   getUserStats(season?: number): Observable<UserStats> {

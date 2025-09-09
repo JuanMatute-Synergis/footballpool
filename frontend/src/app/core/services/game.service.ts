@@ -8,10 +8,14 @@ import { Game, GamesResponse, Team } from '../models/game.model';
   providedIn: 'root'
 })
 export class GameService {
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   getCurrentWeekGames(): Observable<GamesResponse> {
     return this.http.get<GamesResponse>(`${environment.apiUrl}/games/current`);
+  }
+
+  getCurrentWeekGamesForDisplay(): Observable<GamesResponse> {
+    return this.http.get<GamesResponse>(`${environment.apiUrl}/games/current-display`);
   }
 
   getWeekGames(season: number, week: number): Observable<GamesResponse> {

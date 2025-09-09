@@ -1,5 +1,6 @@
 const { getAllQuery, runQuery, getQuery } = require('../models/database');
 const nflApiService = require('../services/nfl-api');
+const scoringService = require('../services/scoring');
 
 const getAllUsers = async (req, res) => {
   try {
@@ -211,10 +212,10 @@ const deleteUser = async (req, res) => {
 
     // Delete user's picks first (foreign key constraint)
     await runQuery('DELETE FROM picks WHERE user_id = ?', [userId]);
-    
+
     // Delete user's weekly scores
     await runQuery('DELETE FROM weekly_scores WHERE user_id = ?', [userId]);
-    
+
     // Delete the user
     await runQuery('DELETE FROM users WHERE id = ?', [userId]);
 
@@ -228,7 +229,7 @@ const deleteUser = async (req, res) => {
 const getAllPicksAdmin = async (req, res) => {
   try {
     const { week, season, userId } = req.query;
-    
+
     let whereConditions = [];
     let params = [];
 
@@ -236,12 +237,12 @@ const getAllPicksAdmin = async (req, res) => {
       whereConditions.push('p.week = ?');
       params.push(week);
     }
-    
+
     if (season) {
       whereConditions.push('p.season = ?');
       params.push(season);
     }
-    
+
     if (userId) {
       whereConditions.push('p.user_id = ?');
       params.push(userId);
@@ -257,6 +258,7 @@ const getAllPicksAdmin = async (req, res) => {
         u.email,
         g.date as game_date,
         g.status as game_status,
+        g.is_monday_night,
         ht.name as home_team_name,
         ht.abbreviation as home_team_abbreviation,
         vt.name as visitor_team_name,
@@ -292,6 +294,7 @@ const getAllPicksAdmin = async (req, res) => {
         game: {
           date: pick.game_date,
           status: pick.game_status,
+          isMonday: pick.is_monday_night,
           homeTeam: {
             name: pick.home_team_name,
             abbreviation: pick.home_team_abbreviation
@@ -383,9 +386,9 @@ const syncTeams = async (req, res) => {
   try {
     console.log('Manual teams sync requested by admin');
     const teams = await nflApiService.fetchAndStoreTeams();
-    res.json({ 
+    res.json({
       message: 'Teams synced successfully',
-      count: teams?.length || 0 
+      count: teams?.length || 0
     });
   } catch (error) {
     console.error('Error syncing teams:', error);
@@ -397,15 +400,15 @@ const syncSchedule = async (req, res) => {
   try {
     const { week, season } = req.body;
     const currentWeek = week && season ? { week, season } : nflApiService.getCurrentWeek();
-    
+
     console.log(`Manual schedule sync requested for week ${currentWeek.week}, ${currentWeek.season}`);
     const games = await nflApiService.fetchWeekSchedule(currentWeek.week, currentWeek.season);
-    
-    res.json({ 
+
+    res.json({
       message: `Schedule synced successfully for week ${currentWeek.week}, ${currentWeek.season}`,
       week: currentWeek.week,
       season: currentWeek.season,
-      count: games?.length || 0 
+      count: games?.length || 0
     });
   } catch (error) {
     console.error('Error syncing schedule:', error);
@@ -417,11 +420,11 @@ const syncFullSeason = async (req, res) => {
   try {
     const { season } = req.body;
     const currentSeason = season || nflApiService.getCurrentWeek().season;
-    
+
     console.log(`Manual full season sync requested for ${currentSeason}`);
     await nflApiService.fetchCurrentAndUpcomingSchedule();
-    
-    res.json({ 
+
+    res.json({
       message: `Full season ${currentSeason} synced successfully`,
       season: currentSeason
     });
@@ -434,11 +437,11 @@ const syncFullSeason = async (req, res) => {
 const clearCache = async (req, res) => {
   try {
     const { runQuery } = require('../models/database');
-    
+
     console.log('Manual cache clear requested by admin');
     await runQuery('DELETE FROM api_cache');
-    
-    res.json({ 
+
+    res.json({
       message: 'API cache cleared successfully'
     });
   } catch (error) {
@@ -450,18 +453,18 @@ const clearCache = async (req, res) => {
 const syncTeamLogos = async (req, res) => {
   try {
     const teamLogoService = require('../services/team-logo.service');
-    
+
     console.log('Manual team logos sync requested by admin');
-    
+
     // Fetch and cache team logos from TheSportsDB
     const logoData = await teamLogoService.fetchAndCacheAllTeamLogos();
-    
+
     // Note: No longer updating database URLs since we serve static files directly
-    
+
     const totalLogos = Object.keys(logoData).length;
     const cachedLogos = Object.values(logoData).filter(logo => logo.logoUrl && logo.logoUrl.startsWith('/')).length;
-    
-    res.json({ 
+
+    res.json({
       message: 'Team logos synced successfully',
       totalTeams: totalLogos,
       cachedLogos: cachedLogos,
@@ -470,6 +473,86 @@ const syncTeamLogos = async (req, res) => {
   } catch (error) {
     console.error('Error syncing team logos:', error);
     res.status(500).json({ message: 'Failed to sync team logos' });
+  }
+};
+
+const resetUserPassword = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { newPassword } = req.body;
+
+    // Validate input
+    if (!newPassword) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    // Check if user exists
+    const user = await getQuery('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [userId]);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Hash new password
+    const bcrypt = require('bcryptjs');
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    await runQuery(
+      'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [passwordHash, userId]
+    );
+
+    res.json({
+      message: `Password reset successfully for ${user.first_name} ${user.last_name} (${user.email})`
+    });
+  } catch (error) {
+    console.error('Error resetting user password:', error);
+    res.status(500).json({ message: 'Failed to reset password' });
+  }
+};
+
+const recalculateScores = async (req, res) => {
+  try {
+    const { week, season } = req.query;
+
+    if (!week || !season) {
+      return res.status(400).json({ message: 'Week and season are required' });
+    }
+
+    console.log(`Manual score recalculation requested for week ${week}, season ${season}`);
+
+    // Recalculate scores for the specified week
+    await scoringService.calculateWeeklyScores(parseInt(week), parseInt(season));
+
+    res.json({
+      message: `Scores recalculated successfully for week ${week}, season ${season}`,
+      week: parseInt(week),
+      season: parseInt(season)
+    });
+  } catch (error) {
+    console.error('Error recalculating scores:', error);
+    res.status(500).json({ message: 'Failed to recalculate scores' });
+  }
+};
+
+const autoCalculateAllScores = async (req, res) => {
+  try {
+    console.log('Manual auto-calculate all scores requested');
+
+    // Run the auto-calculate function
+    await scoringService.autoCalculateScores();
+
+    res.json({
+      message: 'Auto-calculate all scores completed successfully'
+    });
+  } catch (error) {
+    console.error('Error in auto-calculate all scores:', error);
+    res.status(500).json({ message: 'Failed to auto-calculate scores' });
   }
 };
 
@@ -486,5 +569,8 @@ module.exports = {
   syncSchedule,
   syncFullSeason,
   clearCache,
-  syncTeamLogos
+  syncTeamLogos,
+  resetUserPassword,
+  recalculateScores,
+  autoCalculateAllScores
 };

@@ -11,6 +11,7 @@ router.get('/users', adminController.getAllUsers);
 router.post('/users', adminController.createUser);
 router.put('/users/:userId', adminController.updateUser);
 router.put('/users/:userId/role', adminController.updateUserRole);
+router.put('/users/:userId/reset-password', adminController.resetUserPassword);
 router.delete('/users/:userId', adminController.deleteUser);
 
 // Picks management
@@ -26,5 +27,9 @@ router.post('/sync/schedule', adminController.syncSchedule);
 router.post('/sync/full-season', adminController.syncFullSeason);
 router.post('/sync/team-logos', adminController.syncTeamLogos);
 router.post('/clear-cache', adminController.clearCache);
+
+// Scoring management
+router.post('/recalculate-scores', adminController.recalculateScores);
+router.post('/auto-calculate-scores', adminController.autoCalculateAllScores);
 
 module.exports = router;

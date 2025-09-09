@@ -7,32 +7,31 @@ import { HttpClient } from '@angular/common/http';
 import { Game } from '../../core/models/game.model';
 import { Pick } from '../../core/models/pick.model';
 import { environment } from '../../../environments/environment';
+import { NavigationComponent } from '../../shared/components/navigation.component';
 
 @Component({
   selector: 'app-picks',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, NavigationComponent],
   template: `
     <div class="min-h-screen bg-gray-50">
-      <!-- Navigation Header -->
-      <div class="bg-white shadow">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between items-center py-6">
-            <div>
-              <h1 class="text-3xl font-bold text-gray-900">My Picks</h1>
-              <p class="mt-1 text-sm text-gray-500">Week {{ currentWeek }}, {{ currentSeason }}</p>
-            </div>
-            <div class="text-right">
-              <div class="text-2xl font-bold text-blue-600">{{ picksSubmitted }}/{{ totalGames }}</div>
-              <div class="text-sm text-gray-500">Picks Submitted</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Navigation -->
+      <app-navigation 
+        title="My Picks" 
+        [subtitle]="'Week ' + currentWeek + ', ' + currentSeason">
+      </app-navigation>
 
       <!-- Content -->
       <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div class="px-4 py-6 sm:px-0">
+          
+          <!-- Stats Header -->
+          <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <div class="text-center">
+              <div class="text-3xl font-bold text-blue-600">{{ picksSubmitted }}/{{ totalGames }}</div>
+              <div class="text-sm text-gray-500">Picks Submitted</div>
+            </div>
+          </div>
           
           <!-- Loading State -->
           <div *ngIf="loading" class="text-center">
@@ -56,6 +55,7 @@ import { environment } from '../../../environments/environment';
                 <li>• Picks are locked once games start</li>
                 <li>• For Monday Night games, predict the total combined score</li>
                 <li>• Get all picks right for +3 bonus points!</li>
+                <li>• Starting Tuesday, you can make picks for next week's games!</li>
               </ul>
             </div>
 
@@ -205,17 +205,17 @@ export class PicksComponent implements OnInit {
   private fb = inject(FormBuilder);
   private http = inject(HttpClient);
   private baseUrl = environment.apiUrl;
-  
+
 
   loading = true;
   error = '';
   submitting = false;
-  
+
   games: Game[] = [];
   picks: Pick[] = [];
   currentWeek = 1;
   currentSeason = new Date().getFullYear();
-  
+
   picksForm: FormGroup = this.fb.group({});
 
   get totalGames(): number {
@@ -251,10 +251,10 @@ export class PicksComponent implements OnInit {
         this.games = response.games;
         this.currentWeek = response.week;
         this.currentSeason = response.season;
-        
+
         // Initialize form controls for each game
         this.initializeFormControls();
-        
+
         // Load existing picks
         this.loadExistingPicks();
       },
@@ -268,16 +268,16 @@ export class PicksComponent implements OnInit {
 
   initializeFormControls() {
     const controls: any = {};
-    
+
     this.games.forEach(game => {
       controls[`pick_${game.id}`] = [''];
       if (game.isMonday) {
         controls[`monday_${game.id}`] = [''];
       }
     });
-    
+
     this.picksForm = this.fb.group(controls);
-    
+
     // Auto-save on form changes
     this.picksForm.valueChanges.subscribe(() => {
       if (!this.loading) {
@@ -290,7 +290,7 @@ export class PicksComponent implements OnInit {
     this.pickService.getUserPicks(this.currentWeek, this.currentSeason).subscribe({
       next: (response) => {
         this.picks = response.picks;
-        
+
         // Populate form with existing picks
         this.picks.forEach(pick => {
           this.picksForm.patchValue({
@@ -298,7 +298,7 @@ export class PicksComponent implements OnInit {
             [`monday_${pick.gameId}`]: pick.mondayNightPrediction || ''
           });
         });
-        
+
         this.loading = false;
       },
       error: (error) => {
@@ -350,15 +350,15 @@ export class PicksComponent implements OnInit {
     this.games.forEach(game => {
       const selectedTeamId = this.getPickValue(game.id);
       const mondayPrediction = this.getMondayPrediction(game.id);
-      
+
       if (selectedTeamId && !this.isGameLocked(game)) {
         const existingPick = this.picks.find(p => p.gameId === game.id);
-        
+
         // Only save if changed or new
-        if (!existingPick || 
-            existingPick.selectedTeamId !== selectedTeamId || 
-            existingPick.mondayNightPrediction !== mondayPrediction) {
-          
+        if (!existingPick ||
+          existingPick.selectedTeamId !== selectedTeamId ||
+          existingPick.mondayNightPrediction !== mondayPrediction) {
+
           this.pickService.submitPick({
             gameId: game.id,
             selectedTeamId: selectedTeamId,
@@ -390,7 +390,7 @@ export class PicksComponent implements OnInit {
   submitPicks() {
     this.submitting = true;
     this.saveChangedPicks();
-    
+
     // Show confirmation message
     setTimeout(() => {
       this.submitting = false;

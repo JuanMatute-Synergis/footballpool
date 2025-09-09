@@ -1,0 +1,38 @@
+# Cloudflare Tunnel Configuration Template
+# Add this to your existing Cloudflared configuration
+
+# Example tunnel config (adjust to match your existing setup):
+tunnel: your-tunnel-id
+credentials-file: /path/to/your/credentials.json
+
+ingress:
+  # Add this entry for the NFL Picks application
+  - hostname: footballpool.golfleaguemanager.app
+    service: http://localhost:3001
+    originRequest:
+      connectTimeout: 30s
+      tlsTimeout: 20s
+      tcpKeepAlive: true
+      noHappyEyeballs: false
+      keepAliveConnections: 10
+      keepAliveTimeout: 1m30s
+      httpHostHeader: footballpool.golfleaguemanager.app
+  
+  # Your existing ingresses should go here...
+  # - hostname: example.golfleaguemanager.app
+  #   service: http://localhost:8080
+  
+  # Catch-all rule (must be last)
+  - service: http_status:404
+
+---
+
+# Alternative: If using cloudflared locally, run this command:
+# cloudflared tunnel route dns your-tunnel-name footballpool.golfleaguemanager.app
+
+# Instructions:
+# 1. Add the hostname entry above to your existing cloudflared config
+# 2. Restart your cloudflared service:
+#    - If using systemd: sudo systemctl restart cloudflared
+#    - If running manually: restart your cloudflared process
+# 3. The subdomain will be available at: https://footballpool.golfleaguemanager.app

@@ -7,21 +7,15 @@ import { AdminService } from '../../core/services/admin.service';
 import { GameService } from '../../core/services/game.service';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { NavigationComponent } from '../../shared/components/navigation.component';
 
 @Component({
   selector: 'app-results-grid',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NavigationComponent],
   template: `
     <div class="min-h-screen bg-gray-50">
-      <div class="bg-white shadow">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="py-6">
-            <h1 class="text-3xl font-bold text-gray-900">Score Grid</h1>
-            <p class="mt-1 text-sm text-gray-500">Users vs Games — green = correct, red = incorrect</p>
-          </div>
-        </div>
-      </div>
+      <app-navigation title="Score Grid" subtitle="Users vs Games — green = correct, red = incorrect"></app-navigation>
 
       <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div class="px-4 py-6 sm:px-0">
@@ -43,7 +37,10 @@ import { environment } from '../../../environments/environment';
             <table class="min-w-full table-fixed">
               <thead class="bg-gray-100">
                 <tr>
-                  <th class="p-3 text-left w-48">User</th>
+                  <th class="sticky left-0 z-10 bg-gray-100 p-4 text-left w-56 border-r border-gray-200">
+                    <div class="font-semibold text-gray-900">Player</div>
+                    <div class="text-xs text-gray-500 mt-1">Pick Status</div>
+                  </th>
                   <th *ngFor="let g of games" class="p-1 text-center" style="min-width: 120px;">
                     <div class="flex flex-col items-center text-xs">
                       <!-- Visitor Team (Away) -->
@@ -67,21 +64,95 @@ import { environment } from '../../../environments/environment';
                       </div>
                       <!-- Game Status Indicator -->
                       <div *ngIf="g.status === 'final'" class="text-green-600 text-xs mt-1">F</div>
-                      <div *ngIf="g.status === 'in_progress'" class="text-blue-600 text-xs mt-1">LIVE</div>
+                      <div *ngIf="g.status === 'live' || g.status === 'in_progress'" class="text-blue-600 text-xs mt-1">LIVE</div>
+                      
+                      <!-- Live Quarter and Time Information -->
+                      <div *ngIf="(g.status === 'live' || g.status === 'in_progress') && g.liveStatus" 
+                           class="text-xs mt-1 font-semibold"
+                           [class]="formatLiveStatus(g.liveStatus) === 'HALF' ? 'text-purple-600' : 'text-orange-600'">
+                        {{ formatLiveStatus(g.liveStatus) }}
+                      </div>
                     </div>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let u of users" class="border-t">
-                  <td class="p-2">{{ u.firstName }} {{ u.lastName }}</td>
-                  <td *ngFor="let g of games" class="p-2 text-center">
+                <tr *ngFor="let u of users" class="border-t hover:bg-gray-50">
+                  <td class="sticky left-0 z-10 bg-white hover:bg-gray-50 p-4 border-r border-gray-200">
+                    <div class="flex flex-col">
+                      <div class="font-semibold text-gray-900">
+                        {{ u.firstName }} {{ u.lastName }}
+                      </div>
+                      <div class="flex items-center space-x-2 mt-1">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                              [class]="getUserPickCount(u.id) === games.length 
+                                ? 'bg-green-100 text-green-800' 
+                                : getUserPickCount(u.id) === 0 
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'">
+                          <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                          </svg>
+                          {{ getUserPickCount(u.id) }}/{{ games.length }} picks
+                        </span>
+                        
+                        <!-- Tiebreaker Badge -->
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                              [class]="hasUserTiebreaker(u.id) 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'">
+                          <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path *ngIf="hasUserTiebreaker(u.id)" fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            <path *ngIf="!hasUserTiebreaker(u.id)" fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L9.586 10 5.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                          </svg>
+                          {{ hasUserTiebreaker(u.id) ? 'MNF' : 'No MNF' }}
+                        </span>
+                        
+                        <span *ngIf="getUserPickCount(u.id) < games.length" 
+                              class="text-xs text-red-600 font-medium">
+                          {{ games.length - getUserPickCount(u.id) }} missing
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td *ngFor="let g of games" class="p-2 text-center relative">
                     <ng-container *ngIf="picksMap[u.id] && picksMap[u.id][g.id] as pick">
-                      <span *ngIf="g.status === 'final'">
-                        <span *ngIf="isPickCorrect(pick, g)" class="text-green-600 font-bold">✓</span>
-                        <span *ngIf="!isPickCorrect(pick, g)" class="text-red-600 font-bold">✕</span>
-                      </span>
-                      <span *ngIf="g.status !== 'final'" class="text-gray-500">—</span>
+                      <!-- Game finished: show result (✓/✕) -->
+                      <div *ngIf="g.status === 'final'" class="flex flex-col items-center space-y-1">
+                        <span *ngIf="isPickCorrect(pick, g)" class="text-green-600 font-bold text-lg">✓</span>
+                        <span *ngIf="!isPickCorrect(pick, g)" class="text-red-600 font-bold text-lg">✕</span>
+                        <!-- Show picked team logo small below result for reference -->
+                        <img *ngIf="pick.selectedTeam?.abbreviation" 
+                             [src]="getTeamLogo(pick.selectedTeam.abbreviation)" 
+                             [alt]="pick.selectedTeam.abbreviation" 
+                             class="w-5 h-5 object-contain opacity-70"
+                             (error)="handleImageError($event, pick.selectedTeam.abbreviation)"
+                             loading="lazy">
+                        <!-- Show MNF prediction for finished games too -->
+                        <div *ngIf="isMonday(pick) && pick.mondayNightPrediction" 
+                             class="text-xs font-bold text-purple-600 bg-purple-50 px-1 py-0.5 rounded">
+                          {{ pick.mondayNightPrediction }}
+                        </div>
+                      </div>
+                      
+                      <!-- Game started but not finished: show pick details -->
+                      <div *ngIf="g.status !== 'final' && gameHasStarted(g)" class="flex flex-col items-center space-y-1">
+                        <!-- Show picked team logo -->
+                        <img *ngIf="pick.selectedTeam?.abbreviation" 
+                             [src]="getTeamLogo(pick.selectedTeam.abbreviation)" 
+                             [alt]="pick.selectedTeam.abbreviation" 
+                             class="w-8 h-8 object-contain"
+                             (error)="handleImageError($event, pick.selectedTeam.abbreviation)"
+                             loading="lazy">
+                        <!-- Show MNF prediction if applicable -->
+                        <div *ngIf="isMonday(pick) && pick.mondayNightPrediction" 
+                             class="text-xs font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded">
+                          {{ pick.mondayNightPrediction }}
+                        </div>
+                      </div>
+                      
+                      <!-- Game not started: show placeholder -->
+                      <span *ngIf="g.status !== 'final' && !gameHasStarted(g)" class="text-gray-500">—</span>
                     </ng-container>
                     <ng-container *ngIf="!picksMap[u.id] || !picksMap[u.id][g.id]">
                       <span class="text-gray-400">—</span>
@@ -149,7 +220,7 @@ export class ResultsGridComponent implements OnInit {
 
   currentSeason = new Date().getFullYear();
   selectedWeek = 1;
-  availableWeeks = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+  availableWeeks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
   getTeamLogo(abbreviation: string): string {
     // Simply return the server-side logo endpoint
@@ -191,10 +262,10 @@ export class ResultsGridComponent implements OnInit {
           this.games = gamesRes.games || [];
         } else {
           // Public fallback to live games (current week only)
-            const liveRes: any = await firstValueFrom(this.gameService.getLiveGames());
-            if (liveRes.week === this.selectedWeek && liveRes.season === this.currentSeason) {
-              this.games = liveRes.games || [];
-            }
+          const liveRes: any = await firstValueFrom(this.gameService.getLiveGames());
+          if (liveRes.week === this.selectedWeek && liveRes.season === this.currentSeason) {
+            this.games = liveRes.games || [];
+          }
         }
       } catch (gameErr) {
         console.warn('ResultsGrid: failed to fetch games via auth endpoint, trying live fallback', gameErr);
@@ -253,6 +324,25 @@ export class ResultsGridComponent implements OnInit {
     return pick.selectedTeamId === winningTeamId;
   }
 
+  getUserPickCount(userId: number): number {
+    if (!this.picksMap[userId]) return 0;
+    return Object.keys(this.picksMap[userId]).length;
+  }
+
+  hasUserTiebreaker(userId: number): boolean {
+    if (!this.picksMap[userId]) return false;
+
+    // Find Monday Night Football pick for this user
+    const userPicks = this.picksMap[userId];
+    for (const gameId in userPicks) {
+      const pick = userPicks[gameId];
+      if (this.isMonday(pick) && pick.mondayNightPrediction) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   formatGameTime(gameTime: string): string {
     const date = new Date(gameTime);
     return date.toLocaleDateString('en-US', {
@@ -268,5 +358,52 @@ export class ResultsGridComponent implements OnInit {
     const imgElement = event.target as HTMLImageElement;
     // Fallback to ESPN logo if server logo fails
     imgElement.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${teamAbbreviation?.toUpperCase()}.png`;
+  }
+
+  gameHasStarted(game: any): boolean {
+    if (!game || !game.date) return false;
+
+    // If game is live or in progress, it has definitely started
+    if (game.status === 'live' || game.status === 'in_progress') {
+      return true;
+    }
+
+    // Check if current time is past the game start time
+    const gameStartTime = new Date(game.date);
+    const now = new Date();
+
+    return now >= gameStartTime;
+  }
+
+  isMonday(pick: any): boolean {
+    // Check if this pick is for a Monday Night Football game
+    return pick.game?.isMonday === 1 || pick.game?.isMonday === true;
+  }
+
+  formatLiveStatus(liveStatus: string): string {
+    if (!liveStatus) return '';
+
+    // Check for halftime (handle various formats)
+    const statusLower = liveStatus.toLowerCase();
+    if (statusLower.includes('halftime') || statusLower.includes('half time') || statusLower === 'half') {
+      return 'HALF';
+    }
+
+    // Expected format: "3:45 - 4th" -> want "4th 3:45"
+    const match = liveStatus.match(/^(\d{1,2}:\d{2})\s*-\s*(\d+)(?:st|nd|rd|th)$/);
+    if (match) {
+      const time = match[1];
+      const quarter = match[2];
+      return `${this.ordinalSuffix(quarter)} ${time}`;
+    }
+
+    // Fallback: return as-is
+    return liveStatus;
+  }
+
+  private ordinalSuffix(num: string): string {
+    const n = parseInt(num);
+    const suffix = ['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n % 100 / 10) === 1 ? 0 : n % 10];
+    return `${n}${suffix}`;
   }
 }

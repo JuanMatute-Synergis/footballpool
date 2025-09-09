@@ -6,6 +6,9 @@ const { authenticateToken } = require('../middleware/auth');
 // Get current week games (requires auth)
 router.get('/current', authenticateToken, gamesController.getCurrentWeekGames);
 
+// Get current week games for dashboard display (changes on Wednesday, requires auth)
+router.get('/current-display', authenticateToken, gamesController.getCurrentWeekGamesForDisplay);
+
 // Public live games for current week (no auth) - used for short-polling live scores
 router.get('/live', gamesController.getLiveCurrentWeekGames);
 

@@ -28,6 +28,17 @@ class ScoringService {
   // Calculate individual user's weekly score
   async calculateUserWeeklyScore(userId, week, season) {
     try {
+      // Get ALL games for the week (to check if week is complete)
+      const allGames = await getAllQuery(`
+        SELECT COUNT(*) as total_games, 
+               COUNT(CASE WHEN status = 'final' THEN 1 END) as completed_games
+        FROM games 
+        WHERE week = ? AND season = ?
+      `, [week, season]);
+
+      const isWeekComplete = allGames[0].total_games === allGames[0].completed_games;
+      const totalGamesInWeek = allGames[0].total_games;
+
       // Get user's picks for the week
       const picks = await getAllQuery(`
         SELECT 
@@ -48,40 +59,45 @@ class ScoringService {
       }
 
       let correctPicks = 0;
-      let totalPicks = 0;
+      let totalPicksMade = picks.length; // Total picks user made
       let mondayNightPrediction = null;
       let mondayNightActual = null;
       let mondayNightDiff = null;
 
-      // Calculate correct picks
+      // Calculate correct picks (only count completed games)
       for (const pick of picks) {
         if (pick.status === 'final' && pick.home_team_score !== null && pick.visitor_team_score !== null) {
-          totalPicks++;
-          
           // Determine winning team
-          const winningTeamId = pick.home_team_score > pick.visitor_team_score 
-            ? pick.home_team_id 
-            : pick.visitor_team_score > pick.home_team_score 
-              ? pick.visitor_team_id 
+          const winningTeamId = pick.home_team_score > pick.visitor_team_score
+            ? pick.home_team_id
+            : pick.visitor_team_score > pick.home_team_score
+              ? pick.visitor_team_id
               : null; // Tie
 
           // Check if pick was correct
           if (winningTeamId && pick.selected_team_id === winningTeamId) {
             correctPicks++;
           }
+        }
 
-          // Handle Monday night game
-          if (pick.is_monday_night && pick.monday_night_prediction !== null) {
+        // Handle Monday night game (process regardless of game completion status)
+        if (pick.is_monday_night) {
+          if (pick.monday_night_prediction !== null && pick.home_team_score !== null && pick.visitor_team_score !== null) {
             mondayNightPrediction = pick.monday_night_prediction;
             mondayNightActual = pick.home_team_score + pick.visitor_team_score;
             mondayNightDiff = Math.abs(mondayNightPrediction - mondayNightActual);
+          } else if (pick.monday_night_prediction !== null) {
+            // Store prediction even if game isn't complete yet
+            mondayNightPrediction = pick.monday_night_prediction;
           }
         }
       }
 
-      // Calculate bonus points
+      // Calculate bonus points - ONLY if week is complete AND user has all picks AND all picks are correct
       let bonusPoints = 0;
-      const isPerfectWeek = totalPicks > 0 && correctPicks === totalPicks;
+      const isPerfectWeek = isWeekComplete &&
+        totalPicksMade === totalGamesInWeek &&
+        correctPicks === totalGamesInWeek;
       if (isPerfectWeek) {
         bonusPoints = 3;
       }
@@ -95,11 +111,11 @@ class ScoringService {
          monday_night_prediction, monday_night_actual, monday_night_diff, is_perfect_week, updated_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
-        userId, week, season, correctPicks, totalPicks, bonusPoints, totalPoints,
+        userId, week, season, correctPicks, totalPicksMade, bonusPoints, totalPoints,
         mondayNightPrediction, mondayNightActual, mondayNightDiff, isPerfectWeek ? 1 : 0
       ]);
 
-      console.log(`Updated score for user ${userId}: ${correctPicks}/${totalPicks} + ${bonusPoints} bonus = ${totalPoints} total`);
+      console.log(`Updated score for user ${userId}: ${correctPicks}/${totalPicksMade} (${totalGamesInWeek} total games) + ${bonusPoints} bonus = ${totalPoints} total. Week complete: ${isWeekComplete}`);
     } catch (error) {
       console.error(`Error calculating user ${userId} weekly score:`, error);
       throw error;
@@ -190,21 +206,37 @@ class ScoringService {
   // Auto-calculate scores for completed weeks
   async autoCalculateScores() {
     try {
-      // Get recent weeks that might need scoring
+      // Get recent weeks that are complete and might need scoring updates
       const recentWeeks = await getAllQuery(`
-        SELECT DISTINCT week, season
-        FROM games
-        WHERE status = 'final'
-        AND NOT EXISTS (
-          SELECT 1 FROM weekly_scores ws 
-          WHERE ws.week = games.week AND ws.season = games.season
-        )
-        ORDER BY season DESC, week DESC
+        SELECT DISTINCT g.week, g.season,
+               COUNT(*) as total_games,
+               COUNT(CASE WHEN g.status = 'final' THEN 1 END) as completed_games
+        FROM games g
+        WHERE g.season >= ? - 1  
+        GROUP BY g.week, g.season
+        HAVING completed_games = total_games AND completed_games > 0
+        ORDER BY g.season DESC, g.week DESC
         LIMIT 5
-      `);
+      `, [new Date().getFullYear()]);
 
       for (const weekData of recentWeeks) {
-        if (await this.isWeekComplete(weekData.week, weekData.season)) {
+        // Check if there are users with picks but missing scores
+        const usersWithPicks = await getAllQuery(`
+          SELECT DISTINCT user_id FROM picks 
+          WHERE week = ? AND season = ?
+        `, [weekData.week, weekData.season]);
+
+        const usersWithScores = await getAllQuery(`
+          SELECT DISTINCT user_id FROM weekly_scores 
+          WHERE week = ? AND season = ?
+        `, [weekData.week, weekData.season]);
+
+        const missingScores = usersWithPicks.filter(up =>
+          !usersWithScores.some(us => us.user_id === up.user_id)
+        );
+
+        if (missingScores.length > 0 || usersWithScores.length === 0) {
+          console.log(`Auto-calculating scores for week ${weekData.week}/${weekData.season} - ${missingScores.length} users missing scores`);
           await this.calculateWeeklyScores(weekData.week, weekData.season);
         }
       }

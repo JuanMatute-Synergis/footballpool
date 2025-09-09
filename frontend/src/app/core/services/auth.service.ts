@@ -2,11 +2,11 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { 
-  AuthResponse, 
-  LoginRequest, 
-  RegisterRequest, 
-  User 
+import {
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+  User
 } from '../models/auth.model';
 
 @Injectable({
@@ -96,6 +96,13 @@ export class AuthService {
           this.currentUserSubject.next(response.user);
         })
       );
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${environment.apiUrl}/auth/change-password`, {
+      currentPassword,
+      newPassword
+    });
   }
 
   private loadCurrentUser(): void {
