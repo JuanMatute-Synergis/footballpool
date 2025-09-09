@@ -102,9 +102,8 @@ jobs:
           fi
         fi
         
-        # Ensure data directory exists and is properly owned
-        sudo mkdir -p ./data
-        sudo chown -R $(id -u):$(id -g) ./data
+        # Ensure data directory exists and is properly accessible
+        mkdir -p ./data
         ls -la ./data/
         
         # Start new container
