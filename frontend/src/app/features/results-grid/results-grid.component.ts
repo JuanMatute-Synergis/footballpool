@@ -220,7 +220,7 @@ export class ResultsGridComponent implements OnInit {
 
   currentSeason = new Date().getFullYear();
   selectedWeek = 1;
-  availableWeeks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
   getTeamLogo(abbreviation: string): string {
     // Simply return the server-side logo endpoint
