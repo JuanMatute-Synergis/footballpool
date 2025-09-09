@@ -198,7 +198,7 @@ import { environment } from '../../../environments/environment';
                       </div>
                       <div class="flex items-center space-x-2">
                         <span class="text-sm text-gray-600">Final</span>
-                        <span [class]="getPickStatusClass(game.id)">{{ getPickResult(game.id) }}</span>
+                        <span [class]="getResultClass(game.id)">{{ getPickResult(game.id) }}</span>
                       </div>
                     </div>
                   </div>
