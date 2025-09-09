@@ -15,7 +15,7 @@ services:
       - RATE_LIMIT_MAX_REQUESTS=100
       - BALLDONTLIE_API_KEY=97cc6f24-7e97-4345-9a23-5d75130da168
     volumes:
-      - ./data:/app/data:Z
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/auth/health"]
