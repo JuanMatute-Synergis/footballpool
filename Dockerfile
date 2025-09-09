@@ -48,5 +48,5 @@ RUN mkdir -p /app/data
 # Initialize database on startup
 RUN chmod +x seeds/seed.js
 
-# Start command with database initialization
-CMD ["sh", "-c", "node seeds/seed.js && npm start"]
+# Start command with conditional database initialization
+CMD ["sh", "-c", "if [ ! -f /app/data/database.sqlite ]; then echo 'Initializing new database...'; node seeds/seed.js; else echo 'Database exists, skipping seed...'; fi && npm start"]
