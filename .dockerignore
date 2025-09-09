@@ -1,0 +1,41 @@
+# Ignore data directory and database files during build
+data/
+*.sqlite
+*.sqlite.*
+*.db
+*.backup
+
+# Ignore node_modules that might be in the root
+node_modules/
+
+# Ignore version control
+.git/
+.gitignore
+
+# Ignore environment files
+.env
+.env.local
+.env.production
+
+# Ignore log files
+*.log
+logs/
+
+# Ignore temporary files
+tmp/
+temp/
+
+# Ignore backup files
+backups/
+*.backup
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore documentation
+README.md
+*.md
+
+# Ignore CI/CD files
+.github/

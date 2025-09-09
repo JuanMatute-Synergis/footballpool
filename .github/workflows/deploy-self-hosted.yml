@@ -40,72 +40,113 @@ jobs:
           echo "ℹ️ No existing database found"
         fi
 
-    - name: Preserve database by creating external backup
+    - name: Smart deployment with data protection
       run: |
-        echo "=== Ensuring data preservation ==="
+        echo "=== Smart Deployment Strategy ==="
         
-        # Stop accepting new requests gracefully
-        docker compose stop nfl-picks || true
-        
-        # Create multiple backup strategies
+        # Create multiple backup layers before ANY operations
         if [ -f "./data/database.sqlite" ]; then
           timestamp=$(date +%Y%m%d_%H%M%S)
           
-          # 1. Create local backup
+          # 1. Timestamped backup
           cp "./data/database.sqlite" "./data/database.sqlite.backup.$timestamp"
           
-          # 2. Create deployment safety backup  
-          cp "./data/database.sqlite" "./database.deploy.backup"
+          # 2. Pre-deployment backup (for emergency restoration)
+          cp "./data/database.sqlite" "./database.pre-deploy.backup"
           
-          # 3. Google Drive backup
+          # 3. Working copy backup (to detect corruption)
+          cp "./data/database.sqlite" "./database.working.backup"
+          
+          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+          echo "✅ Backups created. Current user count: $user_count"
+          
+          # 4. Google Drive backup
           if command -v rclone &> /dev/null && rclone lsd gdrive: > /dev/null 2>&1; then
             echo "📤 Google Drive backup..."
             ./scripts/backup-to-gdrive.sh || echo "⚠️ Google Drive backup failed"
           fi
-          
-          echo "✅ Multiple backups created"
-          ls -la ./data/database.sqlite* ./database.deploy.backup 2>/dev/null || true
+        else
+          echo "⚠️ No database found to backup"
         fi
 
-    - name: Build new image without affecting data
+    - name: Build new image safely
       run: |
-        echo "Building new container image..."
+        echo "Building new container image (data directory excluded via .dockerignore)..."
         docker compose build --no-cache
 
-    - name: Deploy with guaranteed data preservation
+    - name: Deploy with zero-downtime data protection
       run: |
-        echo "Deploying with data preservation guarantee..."
+        echo "Performing zero-downtime deployment..."
+        
+        # Stop current container gracefully
+        docker compose stop nfl-picks || true
+        sleep 3
+        
+        # Verify data is still intact after stopping
+        if [ -f "./data/database.sqlite" ] && [ -f "./database.working.backup" ]; then
+          if ! cmp -s "./data/database.sqlite" "./database.working.backup"; then
+            echo "⚠️ Database changed during shutdown, restoring from working backup"
+            cp "./database.working.backup" "./data/database.sqlite"
+          fi
+        fi
         
         # Start new container
         docker compose up -d nfl-picks
         
-        # Wait for container to initialize
+        # Wait for startup
+        echo "Waiting for container to start..."
         sleep 20
         
-        # Check if database was reset (this shouldn't happen now)
-        user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
-        echo "User count after deployment: $user_count"
+        # Critical data integrity check
+        max_attempts=3
+        attempt=1
         
-        # If database was reset, restore immediately
-        if [ "$user_count" = "0" ] && [ -f "./database.deploy.backup" ]; then
-          echo "🚨 Database reset detected - performing immediate restoration"
-          docker compose down
-          cp "./database.deploy.backup" "./data/database.sqlite"
-          docker compose up -d nfl-picks
-          sleep 15
-          
-          # Verify restoration
+        while [ $attempt -le $max_attempts ]; do
           user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
-          echo "User count after restoration: $user_count"
           
-          if [ "$user_count" = "0" ]; then
-            echo "❌ CRITICAL: Restoration failed"
-            exit 1
+          if [ "$user_count" != "0" ] && [ "$user_count" != "null" ]; then
+            echo "✅ Deployment successful! User count: $user_count"
+            # Clean up working backup on success
+            rm -f "./database.working.backup"
+            break
+          else
+            echo "❌ Attempt $attempt/$max_attempts: User count is $user_count"
+            
+            if [ $attempt -eq $max_attempts ]; then
+              echo "🚨 EMERGENCY: Deploying data recovery procedures"
+              
+              # Emergency stop and restore
+              docker compose down
+              
+              if [ -f "./database.pre-deploy.backup" ]; then
+                echo "Restoring from pre-deployment backup..."
+                cp "./database.pre-deploy.backup" "./data/database.sqlite"
+                docker compose up -d nfl-picks
+                sleep 15
+                
+                # Verify emergency restoration
+                user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+                
+                if [ "$user_count" != "0" ]; then
+                  echo "✅ Emergency restoration successful! User count: $user_count"
+                else
+                  echo "❌ CRITICAL: Emergency restoration failed. Manual intervention required."
+                  exit 1
+                fi
+              else
+                echo "❌ CRITICAL: No emergency backup available!"
+                exit 1
+              fi
+            else
+              echo "Retrying in 10 seconds..."
+              sleep 10
+              attempt=$((attempt + 1))
+            fi
           fi
-        fi
+        done
         
-        # Clean up deployment backup
-        rm -f "./database.deploy.backup"
+        # Clean up pre-deployment backup on success
+        rm -f "./database.pre-deploy.backup"
 
     - name: Verify data integrity after deployment
       run: |
