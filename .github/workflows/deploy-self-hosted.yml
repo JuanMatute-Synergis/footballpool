@@ -48,19 +48,31 @@ jobs:
         if [ -f "./data/database.sqlite" ]; then
           timestamp=$(date +%Y%m%d_%H%M%S)
           
+          # Create backup directory if it doesn't exist
+          mkdir -p ./backups
+          
           # 1. Timestamped backup
           cp "./data/database.sqlite" "./data/database.sqlite.backup.$timestamp"
           
-          # 2. Pre-deployment backup (for emergency restoration)
-          cp "./data/database.sqlite" "./database.pre-deploy.backup"
+          # 2. Pre-deployment backup (for emergency restoration) - CRITICAL!
+          cp "./data/database.sqlite" "./data/database.sqlite.pre-deploy"
           
           # 3. Working copy backup (to detect corruption)
           cp "./data/database.sqlite" "./database.working.backup"
           
-          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
-          echo "✅ Backups created. Current user count: $user_count"
+          # 4. Extra safety backup in backups directory
+          cp "./data/database.sqlite" "./backups/emergency-backup-$timestamp.sqlite"
           
-          # 4. Google Drive backup
+          # Verify all backups were created
+          echo "=== Backup Verification ==="
+          ls -la ./data/database.sqlite*
+          ls -la ./database.*.backup
+          ls -la ./backups/emergency-backup-$timestamp.sqlite
+          
+          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+          echo "✅ All backups created. Current user count: $user_count"
+          
+          # 5. Google Drive backup
           if command -v rclone &> /dev/null && rclone lsd gdrive: > /dev/null 2>&1; then
             echo "📤 Google Drive backup..."
             ./scripts/backup-to-gdrive.sh || echo "⚠️ Google Drive backup failed"
@@ -118,9 +130,13 @@ jobs:
               # Emergency stop and restore
               docker compose down
               
-              if [ -f "./database.pre-deploy.backup" ]; then
+              # Try multiple backup sources in order of preference
+              restored=false
+              
+              # 1. Try pre-deployment backup first (new fixed filename)
+              if [ -f "./data/database.sqlite.pre-deploy" ]; then
                 echo "Restoring from pre-deployment backup..."
-                cp "./database.pre-deploy.backup" "./data/database.sqlite"
+                cp "./data/database.sqlite.pre-deploy" "./data/database.sqlite"
                 docker compose up -d nfl-picks
                 sleep 15
                 
@@ -129,12 +145,51 @@ jobs:
                 
                 if [ "$user_count" != "0" ]; then
                   echo "✅ Emergency restoration successful! User count: $user_count"
-                else
-                  echo "❌ CRITICAL: Emergency restoration failed. Manual intervention required."
-                  exit 1
+                  restored=true
                 fi
-              else
-                echo "❌ CRITICAL: No emergency backup available!"
+              fi
+              
+              # 2. Try emergency backup from backups directory
+              if [ "$restored" = false ]; then
+                emergency_backup=$(ls -t ./backups/emergency-backup-*.sqlite 2>/dev/null | head -n1)
+                if [ -f "$emergency_backup" ]; then
+                  echo "Restoring from emergency backup: $emergency_backup"
+                  cp "$emergency_backup" "./data/database.sqlite"
+                  docker compose up -d nfl-picks
+                  sleep 15
+                  
+                  user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+                  
+                  if [ "$user_count" != "0" ]; then
+                    echo "✅ Emergency backup restoration successful! User count: $user_count"
+                    restored=true
+                  fi
+                fi
+              fi
+              
+              # 3. Try any recent timestamped backup
+              if [ "$restored" = false ]; then
+                recent_backup=$(ls -t ./data/database.sqlite.backup.* 2>/dev/null | head -n1)
+                if [ -f "$recent_backup" ]; then
+                  echo "Restoring from recent backup: $recent_backup"
+                  cp "$recent_backup" "./data/database.sqlite"
+                  docker compose up -d nfl-picks
+                  sleep 15
+                  
+                  user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+                  
+                  if [ "$user_count" != "0" ]; then
+                    echo "✅ Recent backup restoration successful! User count: $user_count"
+                    restored=true
+                  fi
+                fi
+              fi
+              
+              if [ "$restored" = false ]; then
+                echo "❌ CRITICAL: All restoration attempts failed. Manual intervention required."
+                echo "Available backups:"
+                ls -la ./data/database.sqlite* 2>/dev/null || echo "No database backups found"
+                ls -la ./backups/ 2>/dev/null || echo "No emergency backups found"
                 exit 1
               fi
             else
@@ -146,7 +201,7 @@ jobs:
         done
         
         # Clean up pre-deployment backup on success
-        rm -f "./database.pre-deploy.backup"
+        rm -f "./data/database.sqlite.pre-deploy"
 
     - name: Verify data integrity after deployment
       run: |
