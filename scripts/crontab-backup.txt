@@ -1,0 +1,17 @@
+# Cron jobs for NFL Picks database backup
+# Add these to your crontab with: crontab -e
+
+# Daily backup at 2 AM
+0 2 * * * cd /Users/juanmatute/Projects/footballpool && ./scripts/backup-to-gdrive.sh >> ./logs/cron-backup.log 2>&1
+
+# Additional backup before game days (Thursday, Sunday, Monday)
+0 1 * * 4,0,1 cd /Users/juanmatute/Projects/footballpool && ./scripts/backup-to-gdrive.sh >> ./logs/cron-backup.log 2>&1
+
+# Weekly cleanup and maintenance (Sunday at 3 AM)
+0 3 * * 0 cd /Users/juanmatute/Projects/footballpool && find ./logs -name "*.log" -mtime +30 -delete
+
+# Instructions:
+# 1. Run: crontab -e
+# 2. Copy the lines above (excluding comments starting with #)
+# 3. Save and exit
+# 4. Verify with: crontab -l

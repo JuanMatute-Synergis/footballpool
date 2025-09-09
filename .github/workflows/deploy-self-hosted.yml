@@ -13,20 +13,84 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Stop existing containers
+    - name: Create data backup before deployment
       run: |
-        echo "Stopping existing containers..."
-        docker compose down || true
+        echo "Creating backup before deployment..."
+        if [ -f "./data/database.sqlite" ]; then
+          cp ./data/database.sqlite ./data/database.sqlite.backup.$(date +%Y%m%d_%H%M%S)
+          echo "✅ Database backup created"
+          # Verify backup
+          ls -la ./data/database.sqlite*
+          
+          # Also backup to Google Drive if configured
+          if command -v rclone &> /dev/null && rclone lsd gdrive: > /dev/null 2>&1; then
+            echo "📤 Creating deployment backup to Google Drive..."
+            ./scripts/backup-to-gdrive.sh || echo "⚠️ Google Drive backup failed (continuing deployment)"
+          else
+            echo "ℹ️ Google Drive backup not configured"
+          fi
+        else
+          echo "ℹ️ No existing database found"
+        fi
 
-    - name: Build and start containers
+    - name: Stop existing containers gracefully
       run: |
-        echo "Building and starting containers..."
-        docker compose up --build -d
+        echo "Stopping existing containers gracefully..."
+        docker compose stop || true
+        sleep 5
 
-    - name: Wait for services to start
+    - name: Verify data directory before rebuild
       run: |
-        echo "Waiting for services to start..."
+        echo "=== Data directory before rebuild ==="
+        ls -la ./data/ || echo "No data directory found"
+        if [ -f "./data/database.sqlite" ]; then
+          echo "Database size: $(du -h ./data/database.sqlite)"
+        fi
+
+    - name: Build containers without removing volumes
+      run: |
+        echo "Building containers while preserving data..."
+        docker compose build
+
+    - name: Start containers with preserved data
+      run: |
+        echo "Starting containers with preserved data..."
+        docker compose up -d
+
+    - name: Verify data after deployment
+      run: |
+        echo "=== Data directory after deployment ==="
+        ls -la ./data/ || echo "No data directory found"
+        if [ -f "./data/database.sqlite" ]; then
+          echo "Database size: $(du -h ./data/database.sqlite)"
+        fi
+
+    - name: Verify deployment and data integrity
+      run: |
+        echo "Waiting for services to be ready..."
         sleep 30
+        
+        echo "=== Final verification ==="
+        # Check if containers are running
+        docker compose ps
+        
+        # Check database integrity
+        if [ -f "./data/database.sqlite" ]; then
+          echo "✅ Database file exists: $(du -h ./data/database.sqlite)"
+          
+          # Test API connectivity
+          echo "Testing API health..."
+          curl -f http://localhost:3000/api/auth/health || echo "⚠️ API not responding yet"
+        else
+          echo "❌ Database file missing after deployment!"
+          exit 1
+        fi
+
+    - name: Deployment complete
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "Application available at: http://localhost:4200"
+        echo "Backend API at: http://localhost:3000"
 
     - name: Health check with retries
       run: |

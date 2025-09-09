@@ -62,8 +62,10 @@ function initializeDatabase() {
         visitor_team_id INTEGER NOT NULL,
         date TEXT NOT NULL,
         status TEXT DEFAULT 'scheduled',
+        live_status TEXT,
         home_team_score INTEGER,
         visitor_team_score INTEGER,
+        quarter_time_remaining TEXT,
         is_monday_night BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -151,8 +153,20 @@ function initializeDatabase() {
             console.error('Error adding is_active column:', err);
             reject(err);
           } else {
-            console.log('Migration completed successfully');
-            resolve();
+            // Add live_status column to games table if it doesn't exist
+            database.run('ALTER TABLE games ADD COLUMN live_status TEXT', (err2) => {
+              if (err2 && !err2.message.includes('duplicate column name')) {
+                console.log('live_status column already exists or error:', err2.message);
+              }
+              // Add quarter_time_remaining column to games table if it doesn't exist
+              database.run('ALTER TABLE games ADD COLUMN quarter_time_remaining TEXT', (err3) => {
+                if (err3 && !err3.message.includes('duplicate column name')) {
+                  console.log('quarter_time_remaining column already exists or error:', err3.message);
+                }
+                console.log('Migration completed successfully');
+                resolve();
+              });
+            });
           }
         });
       }
