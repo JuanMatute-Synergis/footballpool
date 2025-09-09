@@ -45,7 +45,7 @@ jobs:
         for i in {1..5}; do
           echo "Health check attempt $i/5..."
           
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/games/current || echo "000")
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/games/current || echo "000")
           
           if [ "$response" = "200" ]; then
             echo "✅ Health check passed - Application is running"

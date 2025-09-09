@@ -62,8 +62,39 @@ The workflow will:
 4. **Stop** existing containers
 5. **Rebuild** and start containers with latest code
 6. **Wait** 30 seconds for startup
-7. **Health Check** the API endpoint
-8. **Report** success or failure
+3. **Health Check** the API endpoint
+4. **Report** success or failure
+
+## Manual Deployment
+
+You can also trigger the deployment manually:
+1. Go to **Actions** tab in your GitHub repository
+2. Click on **Deploy to Production** workflow
+3. Click **Run workflow** button
+
+## Troubleshooting
+
+### Common Issues:
+
+1. **SSH Connection Failed**
+   - Verify `HOST`, `USERNAME`, and `SSH_KEY` secrets
+   - Ensure SSH key is properly formatted
+   - Check server firewall settings
+
+2. **Git Pull Failed**
+   - Ensure the project directory exists on server
+   - Verify git repository is properly initialized
+   - Check file permissions
+
+3. **Docker Build Failed**
+   - Check Docker and Docker Compose are installed
+   - Verify sufficient disk space
+   - Review container logs
+
+4. **Health Check Failed**
+   - Application may need more startup time
+   - Check if port 3001 is available
+   - Review application logs
 
 ## Manual Deployment
 
