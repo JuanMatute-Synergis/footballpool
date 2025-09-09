@@ -12,10 +12,10 @@ node_modules/
 .git/
 .gitignore
 
-# Ignore environment files
+# Ignore environment files (but keep .env.production for Docker build)
 .env
 .env.local
-.env.production
+# .env.production - needed for Docker build
 
 # Ignore log files
 *.log
