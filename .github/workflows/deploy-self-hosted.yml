@@ -52,10 +52,40 @@ jobs:
         echo "Building containers while preserving data..."
         docker compose build
 
+    - name: Create temporary data backup during deployment
+      run: |
+        if [ -f "./data/database.sqlite" ]; then
+          echo "Creating temporary backup during deployment..."
+          cp ./data/database.sqlite ./data/database.sqlite.deploy.backup
+          echo "Temporary backup created"
+        fi
+
     - name: Start containers with preserved data
       run: |
         echo "Starting containers with preserved data..."
         docker compose up -d
+
+    - name: Restore data if lost during deployment
+      run: |
+        sleep 10
+        # Check if database was reset
+        user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"')
+        echo "Current user count: $user_count"
+        
+        if [ "$user_count" = "0" ] && [ -f "./data/database.sqlite.deploy.backup" ]; then
+          echo "⚠️ Database was reset during deployment, restoring from backup..."
+          docker compose down
+          cp ./data/database.sqlite.deploy.backup ./data/database.sqlite
+          docker compose up -d
+          sleep 10
+          
+          # Verify restoration
+          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"')
+          echo "User count after restoration: $user_count"
+        fi
+        
+        # Clean up temporary backup
+        rm -f ./data/database.sqlite.deploy.backup
 
     - name: Verify data after deployment
       run: |
