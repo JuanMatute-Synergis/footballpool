@@ -13,7 +13,7 @@ function getDatabase() {
         throw err;
       }
       console.log('Connected to SQLite database');
-      
+
       // Enable foreign key constraints
       db.run('PRAGMA foreign_keys = ON');
     });
@@ -24,7 +24,7 @@ function getDatabase() {
 function initializeDatabase() {
   return new Promise((resolve, reject) => {
     const database = getDatabase();
-    
+
     // Create tables
     const createTables = `
       -- Users table
@@ -146,7 +146,7 @@ function initializeDatabase() {
         reject(err);
       } else {
         console.log('Database tables created successfully');
-        
+
         // Run migration to add is_active column if it doesn't exist
         database.run('ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1', (err) => {
           if (err && !err.message.includes('duplicate column name')) {
@@ -190,7 +190,7 @@ function closeDatabase() {
 function runQuery(sql, params = []) {
   const database = getDatabase();
   return new Promise((resolve, reject) => {
-    database.run(sql, params, function(err) {
+    database.run(sql, params, function (err) {
       if (err) {
         reject(err);
       } else {
