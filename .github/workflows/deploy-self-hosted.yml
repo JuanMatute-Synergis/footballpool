@@ -13,59 +13,85 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Setup data directory with absolute path
+      run: |
+        echo "Setting up data directory with absolute path..."
+        
+        # Define the absolute data directory
+        DATA_DIR="/Users/juanmatute/data/nfl-picks"
+        
+        # Create the directory if it doesn't exist
+        mkdir -p "$DATA_DIR"
+        
+        # If we have existing data in relative path, migrate it
+        if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite" ] && [ ! -f "$DATA_DIR/database.sqlite" ]; then
+          echo "Migrating existing data from ./data to $DATA_DIR"
+          cp -r ./data/* "$DATA_DIR/" 2>/dev/null || true
+          echo "✅ Data migration completed"
+        fi
+        
+        # Verify the data directory
+        ls -la "$DATA_DIR/"
+        echo "✅ Data directory setup complete: $DATA_DIR"
+
     - name: Create data backup before deployment
       run: |
         echo "Creating backup before deployment..."
-        if [ -f "./data/database.sqlite" ]; then
+        DATA_DIR="/Users/juanmatute/data/nfl-picks"
+        
+        if [ -f "$DATA_DIR/database.sqlite" ]; then
           # Create timestamped backup
           timestamp=$(date +%Y%m%d_%H%M%S)
-          cp ./data/database.sqlite "./data/database.sqlite.backup.$timestamp"
+          cp "$DATA_DIR/database.sqlite" "$DATA_DIR/database.sqlite.backup.$timestamp"
           echo "✅ Database backup created: database.sqlite.backup.$timestamp"
           
           # Also create a pre-deployment backup for immediate recovery if needed
-          cp ./data/database.sqlite "./data/database.sqlite.pre-deploy"
+          cp "$DATA_DIR/database.sqlite" "$DATA_DIR/database.sqlite.pre-deploy"
           echo "✅ Pre-deployment backup created"
           
           # Verify backup
-          ls -la ./data/database.sqlite*
+          ls -la "$DATA_DIR"/database.sqlite*
           
-          # Also backup to Google Drive if configured
+          # Also backup to Google Drive if configured (copy to workspace first)
           if command -v rclone &> /dev/null && rclone lsd gdrive: > /dev/null 2>&1; then
             echo "📤 Creating deployment backup to Google Drive..."
+            cp "$DATA_DIR/database.sqlite" ./database.sqlite.temp
             ./scripts/backup-to-gdrive.sh || echo "⚠️ Google Drive backup failed (continuing deployment)"
+            rm -f ./database.sqlite.temp
           else
             echo "ℹ️ Google Drive backup not configured"
           fi
         else
-          echo "ℹ️ No existing database found"
+          echo "ℹ️ No existing database found in $DATA_DIR"
         fi
 
     - name: Smart deployment with data protection
       run: |
         echo "=== Smart Deployment Strategy ==="
+        DATA_DIR="/Users/juanmatute/data/nfl-picks"
         
         # Create multiple backup layers before ANY operations
-        if [ -f "./data/database.sqlite" ]; then
+        if [ -f "$DATA_DIR/database.sqlite" ]; then
           timestamp=$(date +%Y%m%d_%H%M%S)
           
           # Create backup directory if it doesn't exist
           mkdir -p ./backups
           
           # 1. Timestamped backup
-          cp "./data/database.sqlite" "./data/database.sqlite.backup.$timestamp"
+          cp "$DATA_DIR/database.sqlite" "$DATA_DIR/database.sqlite.backup.$timestamp"
           
           # 2. Pre-deployment backup (for emergency restoration) - CRITICAL!
-          cp "./data/database.sqlite" "./data/database.sqlite.pre-deploy"
+          cp "$DATA_DIR/database.sqlite" "$DATA_DIR/database.sqlite.pre-deploy"
           
           # 3. Working copy backup (to detect corruption)
-          cp "./data/database.sqlite" "./database.working.backup"
+          cp "$DATA_DIR/database.sqlite" "./database.working.backup"
           
           # 4. Extra safety backup in backups directory
-          cp "./data/database.sqlite" "./backups/emergency-backup-$timestamp.sqlite"
+          cp "$DATA_DIR/database.sqlite" "./backups/emergency-backup-$timestamp.sqlite"
           
           # Verify all backups were created
           echo "=== Backup Verification ==="
-          ls -la ./data/database.sqlite*
+          ls -la "$DATA_DIR"/database.sqlite*
           ls -la ./database.*.backup
           ls -la ./backups/emergency-backup-$timestamp.sqlite
           
@@ -75,10 +101,12 @@ jobs:
           # 5. Google Drive backup
           if command -v rclone &> /dev/null && rclone lsd gdrive: > /dev/null 2>&1; then
             echo "📤 Google Drive backup..."
+            cp "$DATA_DIR/database.sqlite" ./database.sqlite.temp
             ./scripts/backup-to-gdrive.sh || echo "⚠️ Google Drive backup failed"
+            rm -f ./database.sqlite.temp
           fi
         else
-          echo "⚠️ No database found to backup"
+          echo "⚠️ No database found to backup in $DATA_DIR"
         fi
 
     - name: Build new image safely
@@ -95,16 +123,17 @@ jobs:
         sleep 3
         
         # Verify data is still intact after stopping
-        if [ -f "./data/database.sqlite" ] && [ -f "./database.working.backup" ]; then
-          if ! cmp -s "./data/database.sqlite" "./database.working.backup"; then
+        DATA_DIR="/Users/juanmatute/data/nfl-picks"
+        if [ -f "$DATA_DIR/database.sqlite" ] && [ -f "./database.working.backup" ]; then
+          if ! cmp -s "$DATA_DIR/database.sqlite" "./database.working.backup"; then
             echo "⚠️ Database changed during shutdown, restoring from working backup"
-            cp "./database.working.backup" "./data/database.sqlite"
+            cp "./database.working.backup" "$DATA_DIR/database.sqlite"
           fi
         fi
         
         # Ensure data directory exists and is properly accessible
-        mkdir -p ./data
-        ls -la ./data/
+        mkdir -p "$DATA_DIR"
+        ls -la "$DATA_DIR"
         
         # Start new container
         echo "Starting new container with volume mount verification..."
@@ -142,14 +171,15 @@ jobs:
               
               # Emergency stop and restore
               docker compose down
+              DATA_DIR="/Users/juanmatute/data/nfl-picks"
               
               # Try multiple backup sources in order of preference
               restored=false
               
               # 1. Try pre-deployment backup first (new fixed filename)
-              if [ -f "./data/database.sqlite.pre-deploy" ]; then
+              if [ -f "$DATA_DIR/database.sqlite.pre-deploy" ]; then
                 echo "Restoring from pre-deployment backup..."
-                cp "./data/database.sqlite.pre-deploy" "./data/database.sqlite"
+                cp "$DATA_DIR/database.sqlite.pre-deploy" "$DATA_DIR/database.sqlite"
                 docker compose up -d nfl-picks
                 sleep 15
                 
@@ -167,7 +197,7 @@ jobs:
                 emergency_backup=$(ls -t ./backups/emergency-backup-*.sqlite 2>/dev/null | head -n1)
                 if [ -f "$emergency_backup" ]; then
                   echo "Restoring from emergency backup: $emergency_backup"
-                  cp "$emergency_backup" "./data/database.sqlite"
+                  cp "$emergency_backup" "$DATA_DIR/database.sqlite"
                   docker compose up -d nfl-picks
                   sleep 15
                   
@@ -182,10 +212,10 @@ jobs:
               
               # 3. Try any recent timestamped backup
               if [ "$restored" = false ]; then
-                recent_backup=$(ls -t ./data/database.sqlite.backup.* 2>/dev/null | head -n1)
+                recent_backup=$(ls -t /Users/juanmatute/data/nfl-picks/database.sqlite.backup.* 2>/dev/null | head -n1)
                 if [ -f "$recent_backup" ]; then
                   echo "Restoring from recent backup: $recent_backup"
-                  cp "$recent_backup" "./data/database.sqlite"
+                  cp "$recent_backup" "/Users/juanmatute/data/nfl-picks/database.sqlite"
                   docker compose up -d nfl-picks
                   sleep 15
                   
@@ -201,7 +231,7 @@ jobs:
               if [ "$restored" = false ]; then
                 echo "❌ CRITICAL: All restoration attempts failed. Manual intervention required."
                 echo "Available backups:"
-                ls -la ./data/database.sqlite* 2>/dev/null || echo "No database backups found"
+                ls -la /Users/juanmatute/data/nfl-picks/database.sqlite* 2>/dev/null || echo "No database backups found"
                 ls -la ./backups/ 2>/dev/null || echo "No emergency backups found"
                 exit 1
               fi
@@ -214,14 +244,14 @@ jobs:
         done
         
         # Clean up pre-deployment backup on success
-        rm -f "./data/database.sqlite.pre-deploy"
+        rm -f "/Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy"
 
     - name: Verify data integrity after deployment
       run: |
         echo "=== Data integrity verification ==="
         ls -la ./data/ || echo "No data directory found"
-        if [ -f "./data/database.sqlite" ]; then
-          echo "Database size: $(du -h ./data/database.sqlite)"
+        if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite" ]; then
+          echo "Database size: $(du -h /Users/juanmatute/data/nfl-picks/database.sqlite)"
           
           # Verify database is not empty and has users
           user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
@@ -249,8 +279,8 @@ jobs:
         docker compose ps
         
         # Check database integrity
-        if [ -f "./data/database.sqlite" ]; then
-          echo "✅ Database file exists: $(du -h ./data/database.sqlite)"
+        if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite" ]; then
+          echo "✅ Database file exists: $(du -h /Users/juanmatute/data/nfl-picks/database.sqlite)"
           
           # Test API connectivity and user count
           echo "Testing API health..."
@@ -269,10 +299,10 @@ jobs:
                 echo "❌ API failed to respond properly after $max_attempts attempts"
                 
                 # Emergency restoration from pre-deployment backup
-                if [ -f "./data/database.sqlite.pre-deploy" ]; then
+                if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy" ]; then
                   echo "🚨 Attempting emergency restoration from pre-deployment backup..."
                   docker compose down
-                  cp ./data/database.sqlite.pre-deploy ./data/database.sqlite
+                  cp /Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy /Users/juanmatute/data/nfl-picks/database.sqlite
                   docker compose up -d
                   sleep 15
                   
@@ -302,7 +332,7 @@ jobs:
         fi
         
         # Clean up pre-deployment backup on success
-        rm -f ./data/database.sqlite.pre-deploy
+        rm -f /Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy
 
     - name: Deployment complete
       run: |
