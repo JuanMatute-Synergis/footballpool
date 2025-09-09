@@ -9,19 +9,19 @@ router.get('/health', async (req, res) => {
         const { getQuery } = require('../models/database');
         // Test database connectivity
         const result = await getQuery('SELECT COUNT(*) as user_count FROM users');
-        
-        res.json({ 
-            status: 'ok', 
+
+        res.json({
+            status: 'ok',
             timestamp: new Date().toISOString(),
             database: 'connected',
             user_count: result.user_count
         });
     } catch (error) {
-        res.status(500).json({ 
-            status: 'error', 
+        res.status(500).json({
+            status: 'error',
             timestamp: new Date().toISOString(),
             database: 'error',
-            error: error.message 
+            error: error.message
         });
     }
 });
