@@ -102,12 +102,22 @@ jobs:
           fi
         fi
         
+        # Ensure data directory exists and is properly owned
+        sudo mkdir -p ./data
+        sudo chown -R $(id -u):$(id -g) ./data
+        ls -la ./data/
+        
         # Start new container
+        echo "Starting new container with volume mount verification..."
         docker compose up -d nfl-picks
         
-        # Wait for startup - increased time for database initialization
-        echo "Waiting for container to fully initialize..."
-        sleep 35
+        # Wait longer for proper volume mount and database initialization
+        echo "Waiting for container to fully initialize with volume mount..."
+        sleep 45
+        
+        # Check container logs for startup issues
+        echo "=== Container startup logs ==="
+        docker compose logs --tail=10 nfl-picks
         
         # Critical data integrity check with more attempts and patience  
         max_attempts=5
@@ -123,6 +133,10 @@ jobs:
             break
           else
             echo "❌ Attempt $attempt/$max_attempts: User count is $user_count"
+            echo "Container status:"
+            docker compose ps
+            echo "Recent container logs:"
+            docker compose logs --tail=5 nfl-picks
             
             if [ $attempt -eq $max_attempts ]; then
               echo "🚨 EMERGENCY: Deploying data recovery procedures"
@@ -193,8 +207,8 @@ jobs:
                 exit 1
               fi
             else
-              echo "Retrying in 15 seconds..."
-              sleep 15
+              echo "Retrying in 20 seconds..."
+              sleep 20
               attempt=$((attempt + 1))
             fi
           fi

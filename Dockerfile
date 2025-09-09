@@ -28,7 +28,6 @@ RUN ls -la dist/
 # Copy backend source
 WORKDIR /app/backend
 COPY backend/src ./src
-COPY backend/seeds ./seeds
 COPY backend/scripts ./scripts
 COPY backend/public ./public
 
@@ -42,11 +41,37 @@ COPY .env.production .env
 # Expose port
 EXPOSE 3001
 
-# Create database directory
+# Create database directory (this will be replaced by volume mount in production)
 RUN mkdir -p /app/data
 
-# Initialize database on startup
-RUN chmod +x seeds/seed.js
-
-# Start command - only run seed in development, never in production deployment
-CMD ["sh", "-c", "echo 'Starting NFL Picks application...'; if [ \"$NODE_ENV\" = \"development\" ] && [ ! -f /app/data/database.sqlite ]; then echo 'Development mode: initializing database...'; node seeds/seed.js; else echo 'Production mode: skipping seed, database schema will be initialized by app...'; fi && npm start"]
+# Start command with volume mount verification - no seed execution needed
+CMD ["sh", "-c", "\
+echo 'Starting NFL Picks application...'; \
+\
+# Wait for volume mount to be ready (production deployment timing fix) \
+if [ \"$NODE_ENV\" = \"production\" ]; then \
+  echo 'Production mode: Waiting for volume mount to be ready...'; \
+  for i in $(seq 1 10); do \
+    if mountpoint -q /app/data 2>/dev/null || [ -w /app/data ]; then \
+      echo 'Volume mount is ready'; \
+      break; \
+    fi; \
+    echo \"Waiting for volume mount... attempt $i/10\"; \
+    sleep 2; \
+  done; \
+  \
+  # Verify we can write to the data directory \
+  if [ ! -w /app/data ]; then \
+    echo 'ERROR: /app/data is not writable - volume mount may have failed'; \
+    exit 1; \
+  fi; \
+  \
+  echo 'Volume mount verified, proceeding with application startup...'; \
+fi; \
+\
+# Database schema will be automatically initialized by the application \
+echo 'Database schema will be initialized by application on startup...'; \
+\
+# Start the application \
+echo 'Starting application server...'; \
+npm start"]
