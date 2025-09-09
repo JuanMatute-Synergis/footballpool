@@ -95,11 +95,19 @@ typings/
 # TernJS port file
 .tern-port
 
-# Angular
+# Frontend build outputs (auto-generated during Docker build)
 /frontend/dist/
 /frontend/tmp/
 /frontend/out-tsc/
 /frontend/.angular/
+
+# Backend public directory (populated by Docker build from frontend dist)
+/backend/public/*.js
+/backend/public/*.css
+/backend/public/*.txt
+/backend/public/index.html
+/backend/public/assets/
+!/backend/public/team-logos/
 
 # IDEs and editors
 /.idea

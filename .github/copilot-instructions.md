@@ -1,4 +1,25 @@
-# NFL Picks Application - AI Copilot Instructions
+# NFL Picks A**Critical Data Protection Patterns**
+
+**NEVER run seed scripts in production deployments** - this was the source of major data loss incidents. The Dockerfile CMD checks:
+```bash
+if [ "$NODE_ENV" = "development" ] && [ ! -f /app/data/database.sqlite ]; then node seeds/seed.js; fi
+```
+
+**Database wrapper pattern**: All DB operations use wrapped functions from `database.js`:
+- `getQuery()` - single row SELECT with parameter binding
+- `getAllQuery()` - multiple rows SELECT with parameter binding  
+- `runQuery()` - INSERT/UPDATE/DELETE with parameter binding
+- **Never use raw SQL concatenation** - always use parameterized queries
+
+**Volume mount timing**: Container startup waits for volume mount before database operations. Health checks at `/api/auth/health` return user count for deployment verification.
+
+**NEVER modify backend/public/ during development**:
+- This directory contains built frontend assets that are auto-generated during Docker build
+- Local modifications create unnecessary repository changes
+- Frontend changes should be committed and tested via GitHub Actions deployment
+- The Docker build process handles frontend compilation and asset copying automatically
+
+**Google Drive backup integration** (`scripts/backup-to-gdrive.sh`):Copilot Instructions
 
 ## Architecture Overview
 
@@ -204,25 +225,34 @@ cd frontend && npm start
 rm backend/database.sqlite && cd backend && npm run seed
 ```
 
-**Testing deployment locally**:
+**Testing changes via GitHub Actions deployment**:
 ```bash
-# Build and run production container
-docker-compose down && docker-compose up --build -d
+# Commit changes and push to trigger deployment
+git add [files]
+git commit -m "Description of changes"
+git push
 
-# Verify deployment health
+# Monitor deployment at: https://github.com/JuanMatute-Synergis/footballpool/actions
+# Verify deployment health after completion
 curl http://localhost:3001/api/auth/health
 # Expected response: {"status":"ok","user_count":9,"database_connected":true}
 ```
+
+**IMPORTANT: Do NOT rebuild Docker containers locally for testing**
+- The Docker build process modifies `backend/public/` with frontend assets
+- This creates unnecessary file changes in the repository
+- Instead, commit frontend changes and use GitHub Actions for testing
+- Local Docker builds should only be used for development debugging
 
 **Data recovery procedures**:
 ```bash
 # Emergency database restoration
 docker-compose down
-cp backups/nfl-picks-db-[timestamp].sqlite data/database.sqlite
+cp backups/nfl-picks-db-[timestamp].sqlite /Users/juanmatute/data/nfl-picks/database.sqlite
 docker-compose up -d
 
 # Google Drive recovery
-rclone copy gdrive:nfl-picks-backups/daily/[latest] data/database.sqlite
+rclone copy gdrive:nfl-picks-backups/daily/[latest] /Users/juanmatute/data/nfl-picks/database.sqlite
 ```
 
 ## Scoring System Business Logic
