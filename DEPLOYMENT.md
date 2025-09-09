@@ -100,5 +100,5 @@ You can also trigger the deployment manually:
 ```bash
 # On your server
 cd /opt/footballpool  # or your PROJECT_PATH
-docker-compose logs --tail=50
+docker compose logs --tail=50
 ```

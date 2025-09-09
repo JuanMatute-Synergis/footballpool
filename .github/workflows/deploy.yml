@@ -28,10 +28,10 @@ jobs:
           git pull origin main
           
           # Stop and remove existing containers
-          docker-compose down
+          docker compose down
           
           # Rebuild and start containers
-          docker-compose up --build -d
+          docker compose up --build -d
           
           # Wait for containers to start
           sleep 30
@@ -46,7 +46,7 @@ jobs:
           else
             echo "❌ Health check failed - HTTP status: $response"
             echo "Container logs:"
-            docker-compose logs --tail=20
+            docker compose logs --tail=20
             exit 1
           fi
 

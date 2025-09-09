@@ -20,11 +20,11 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker-compose build
+        docker compose build
 
     - name: Start services
       run: |
-        docker-compose up -d
+        docker compose up -d
         
     - name: Wait for services to start
       run: |
@@ -36,7 +36,7 @@ jobs:
         echo "Performing health check..."
         
         # Check if containers are running
-        docker-compose ps
+        docker compose ps
         
         # Wait a bit more and try health check
         sleep 10
@@ -55,7 +55,7 @@ jobs:
             if [ $i -eq 5 ]; then
               echo "❌ All health check attempts failed"
               echo "Container logs:"
-              docker-compose logs --tail=20
+              docker compose logs --tail=20
               exit 1
             fi
             sleep 10
@@ -66,11 +66,11 @@ jobs:
       if: failure()
       run: |
         echo "=== Container Status ==="
-        docker-compose ps
+        docker compose ps
         echo "=== Container Logs ==="
-        docker-compose logs --tail=50
+        docker compose logs --tail=50
 
     - name: Cleanup
       if: always()
       run: |
-        docker-compose down
+        docker compose down
