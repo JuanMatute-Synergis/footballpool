@@ -292,14 +292,6 @@ import { environment } from '../../../environments/environment';
                 </div>
               </div>
             </div>
-
-            <!-- App Status -->
-            <div class="card p-6 text-center bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
-              <p class="text-green-800 font-medium mb-2">🎉 Your NFL Weekly Picks application is fully operational!</p>
-              <p class="text-sm text-green-700">
-                All features are working: Authentication, Picks, Leaderboards, Results, and Admin Panel
-              </p>
-            </div>
           </div>
         </div>
       </div>
