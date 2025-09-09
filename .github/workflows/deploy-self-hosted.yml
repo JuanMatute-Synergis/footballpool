@@ -17,8 +17,15 @@ jobs:
       run: |
         echo "Creating backup before deployment..."
         if [ -f "./data/database.sqlite" ]; then
-          cp ./data/database.sqlite ./data/database.sqlite.backup.$(date +%Y%m%d_%H%M%S)
-          echo "✅ Database backup created"
+          # Create timestamped backup
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          cp ./data/database.sqlite "./data/database.sqlite.backup.$timestamp"
+          echo "✅ Database backup created: database.sqlite.backup.$timestamp"
+          
+          # Also create a pre-deployment backup for immediate recovery if needed
+          cp ./data/database.sqlite "./data/database.sqlite.pre-deploy"
+          echo "✅ Pre-deployment backup created"
+          
           # Verify backup
           ls -la ./data/database.sqlite*
           
@@ -33,66 +40,70 @@ jobs:
           echo "ℹ️ No existing database found"
         fi
 
-    - name: Stop existing containers gracefully
+    - name: Verify data directory exists and preserve current state
       run: |
-        echo "Stopping existing containers gracefully..."
-        docker compose stop || true
-        sleep 5
-
-    - name: Verify data directory before rebuild
-      run: |
-        echo "=== Data directory before rebuild ==="
+        echo "=== Current data state ==="
         ls -la ./data/ || echo "No data directory found"
         if [ -f "./data/database.sqlite" ]; then
           echo "Database size: $(du -h ./data/database.sqlite)"
+          # Get current user count to verify data integrity
+          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+          echo "Current user count: $user_count"
         fi
 
-    - name: Build containers without removing volumes
+    - name: Build new image without stopping containers
       run: |
-        echo "Building containers while preserving data..."
-        docker compose build
+        echo "Building new container image..."
+        docker compose build --no-cache
 
-    - name: Create temporary data backup during deployment
+    - name: Rolling deployment with zero data loss
       run: |
-        if [ -f "./data/database.sqlite" ]; then
-          echo "Creating temporary backup during deployment..."
-          cp ./data/database.sqlite ./data/database.sqlite.deploy.backup
-          echo "Temporary backup created"
-        fi
-
-    - name: Start containers with preserved data
-      run: |
-        echo "Starting containers with preserved data..."
-        docker compose up -d
-
-    - name: Restore data if lost during deployment
-      run: |
-        sleep 10
-        # Check if database was reset
-        user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"')
-        echo "Current user count: $user_count"
+        echo "Performing rolling deployment to preserve data..."
         
-        if [ "$user_count" = "0" ] && [ -f "./data/database.sqlite.deploy.backup" ]; then
-          echo "⚠️ Database was reset during deployment, restoring from backup..."
-          docker compose down
-          cp ./data/database.sqlite.deploy.backup ./data/database.sqlite
-          docker compose up -d
-          sleep 10
+        # Get the current container ID for reference
+        current_container=$(docker compose ps -q nfl-picks || echo "")
+        
+        if [ -n "$current_container" ]; then
+          echo "Current container: $current_container"
           
-          # Verify restoration
-          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"')
-          echo "User count after restoration: $user_count"
+          # Perform rolling update - this stops old container and starts new one
+          # but preserves the mounted volume data
+          docker compose up -d --force-recreate --no-deps nfl-picks
+          
+          # Wait for new container to be healthy
+          echo "Waiting for new container to be ready..."
+          sleep 15
+          
+          # Verify the new container is running
+          new_container=$(docker compose ps -q nfl-picks)
+          echo "New container: $new_container"
+        else
+          echo "No existing container found, starting fresh..."
+          docker compose up -d
+          sleep 15
         fi
-        
-        # Clean up temporary backup
-        rm -f ./data/database.sqlite.deploy.backup
 
-    - name: Verify data after deployment
+    - name: Verify data integrity after deployment
       run: |
-        echo "=== Data directory after deployment ==="
+        echo "=== Data integrity verification ==="
         ls -la ./data/ || echo "No data directory found"
         if [ -f "./data/database.sqlite" ]; then
           echo "Database size: $(du -h ./data/database.sqlite)"
+          
+          # Verify database is not empty and has users
+          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+          echo "User count after deployment: $user_count"
+          
+          if [ "$user_count" = "0" ]; then
+            echo "❌ CRITICAL: Database appears to be empty after deployment!"
+            echo "This indicates data loss occurred during deployment."
+            exit 1
+          else
+            echo "✅ Database integrity verified - $user_count users found"
+          fi
+        else
+          echo "❌ Database file missing after deployment!"
+          exit 1
         fi
 
     - name: Verify deployment and data integrity
@@ -108,13 +119,57 @@ jobs:
         if [ -f "./data/database.sqlite" ]; then
           echo "✅ Database file exists: $(du -h ./data/database.sqlite)"
           
-          # Test API connectivity
+          # Test API connectivity and user count
           echo "Testing API health..."
-          curl -f http://localhost:3000/api/auth/health || echo "⚠️ API not responding yet"
+          max_attempts=5
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+            
+            if [ "$user_count" != "0" ] && [ "$user_count" != "null" ]; then
+              echo "✅ API responding with $user_count users"
+              break
+            else
+              echo "⏳ Attempt $attempt/$max_attempts - API not ready or no users found"
+              if [ $attempt -eq $max_attempts ]; then
+                echo "❌ API failed to respond properly after $max_attempts attempts"
+                
+                # Emergency restoration from pre-deployment backup
+                if [ -f "./data/database.sqlite.pre-deploy" ]; then
+                  echo "🚨 Attempting emergency restoration from pre-deployment backup..."
+                  docker compose down
+                  cp ./data/database.sqlite.pre-deploy ./data/database.sqlite
+                  docker compose up -d
+                  sleep 15
+                  
+                  # Verify restoration
+                  user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+                  echo "User count after emergency restoration: $user_count"
+                  
+                  if [ "$user_count" != "0" ]; then
+                    echo "✅ Emergency restoration successful"
+                  else
+                    echo "❌ Emergency restoration failed"
+                    exit 1
+                  fi
+                else
+                  echo "❌ No pre-deployment backup available for restoration"
+                  exit 1
+                fi
+              else
+                sleep 10
+                attempt=$((attempt + 1))
+              fi
+            fi
+          done
         else
           echo "❌ Database file missing after deployment!"
           exit 1
         fi
+        
+        # Clean up pre-deployment backup on success
+        rm -f ./data/database.sqlite.pre-deploy
 
     - name: Deployment complete
       run: |
