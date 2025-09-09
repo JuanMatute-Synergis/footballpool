@@ -62,8 +62,8 @@ The workflow will:
 4. **Stop** existing containers
 5. **Rebuild** and start containers with latest code
 6. **Wait** 30 seconds for startup
-3. **Health Check** the API endpoint
-4. **Report** success or failure
+7. **Health Check** the `/api/games/live` endpoint (public, no auth required)
+8. **Report** success or failure
 
 ## Manual Deployment
 
@@ -124,7 +124,7 @@ You can also trigger the deployment manually:
 
 4. **Health Check Failed**
    - Application may need more startup time
-   - Check if port 3000 is available
+   - Check if port 3001 is available
    - Review application logs
 
 ### Viewing Logs:
