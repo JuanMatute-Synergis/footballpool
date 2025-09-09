@@ -1,0 +1,66 @@
+name: Deploy to Self-Hosted Runner
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Stop existing containers
+      run: |
+        echo "Stopping existing containers..."
+        docker compose down || true
+
+    - name: Build and start containers
+      run: |
+        echo "Building and starting containers..."
+        docker compose up --build -d
+
+    - name: Wait for services to start
+      run: |
+        echo "Waiting for services to start..."
+        sleep 30
+
+    - name: Health check with retries
+      run: |
+        echo "Performing health check..."
+        
+        # Show container status
+        docker compose ps
+        
+        # Try health check with retries
+        for i in {1..5}; do
+          echo "Health check attempt $i/5..."
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/games/live || echo "000")
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Health check passed - Application is running"
+            echo "🚀 Deployment successful!"
+            exit 0
+          else
+            echo "⏳ Health check failed (attempt $i/5) - HTTP status: $response"
+            if [ $i -eq 5 ]; then
+              echo "❌ All health check attempts failed"
+              echo "Container logs:"
+              docker compose logs --tail=20
+              exit 1
+            fi
+            sleep 10
+          fi
+        done
+
+    - name: Show container logs on failure
+      if: failure()
+      run: |
+        echo "=== Deployment Failed - Container Status ==="
+        docker compose ps
+        echo "=== Container Logs ==="
+        docker compose logs --tail=50
