@@ -40,48 +40,72 @@ jobs:
           echo "ℹ️ No existing database found"
         fi
 
-    - name: Verify data directory exists and preserve current state
+    - name: Preserve database by creating external backup
       run: |
-        echo "=== Current data state ==="
-        ls -la ./data/ || echo "No data directory found"
+        echo "=== Ensuring data preservation ==="
+        
+        # Stop accepting new requests gracefully
+        docker compose stop nfl-picks || true
+        
+        # Create multiple backup strategies
         if [ -f "./data/database.sqlite" ]; then
-          echo "Database size: $(du -h ./data/database.sqlite)"
-          # Get current user count to verify data integrity
-          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
-          echo "Current user count: $user_count"
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          
+          # 1. Create local backup
+          cp "./data/database.sqlite" "./data/database.sqlite.backup.$timestamp"
+          
+          # 2. Create deployment safety backup  
+          cp "./data/database.sqlite" "./database.deploy.backup"
+          
+          # 3. Google Drive backup
+          if command -v rclone &> /dev/null && rclone lsd gdrive: > /dev/null 2>&1; then
+            echo "📤 Google Drive backup..."
+            ./scripts/backup-to-gdrive.sh || echo "⚠️ Google Drive backup failed"
+          fi
+          
+          echo "✅ Multiple backups created"
+          ls -la ./data/database.sqlite* ./database.deploy.backup 2>/dev/null || true
         fi
 
-    - name: Build new image without stopping containers
+    - name: Build new image without affecting data
       run: |
         echo "Building new container image..."
         docker compose build --no-cache
 
-    - name: Rolling deployment with zero data loss
+    - name: Deploy with guaranteed data preservation
       run: |
-        echo "Performing rolling deployment to preserve data..."
+        echo "Deploying with data preservation guarantee..."
         
-        # Get the current container ID for reference
-        current_container=$(docker compose ps -q nfl-picks || echo "")
+        # Start new container
+        docker compose up -d nfl-picks
         
-        if [ -n "$current_container" ]; then
-          echo "Current container: $current_container"
-          
-          # Perform rolling update - this stops old container and starts new one
-          # but preserves the mounted volume data
-          docker compose up -d --force-recreate --no-deps nfl-picks
-          
-          # Wait for new container to be healthy
-          echo "Waiting for new container to be ready..."
+        # Wait for container to initialize
+        sleep 20
+        
+        # Check if database was reset (this shouldn't happen now)
+        user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+        echo "User count after deployment: $user_count"
+        
+        # If database was reset, restore immediately
+        if [ "$user_count" = "0" ] && [ -f "./database.deploy.backup" ]; then
+          echo "🚨 Database reset detected - performing immediate restoration"
+          docker compose down
+          cp "./database.deploy.backup" "./data/database.sqlite"
+          docker compose up -d nfl-picks
           sleep 15
           
-          # Verify the new container is running
-          new_container=$(docker compose ps -q nfl-picks)
-          echo "New container: $new_container"
-        else
-          echo "No existing container found, starting fresh..."
-          docker compose up -d
-          sleep 15
+          # Verify restoration
+          user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
+          echo "User count after restoration: $user_count"
+          
+          if [ "$user_count" = "0" ]; then
+            echo "❌ CRITICAL: Restoration failed"
+            exit 1
+          fi
         fi
+        
+        # Clean up deployment backup
+        rm -f "./database.deploy.backup"
 
     - name: Verify data integrity after deployment
       run: |
