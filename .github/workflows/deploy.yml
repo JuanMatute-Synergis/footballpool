@@ -1,0 +1,60 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.PORT || 22 }}
+        script: |
+          # Navigate to project directory
+          cd ${{ secrets.PROJECT_PATH || '/opt/footballpool' }}
+          
+          # Pull latest changes
+          git pull origin main
+          
+          # Stop and remove existing containers
+          docker-compose down
+          
+          # Rebuild and start containers
+          docker-compose up --build -d
+          
+          # Wait for containers to start
+          sleep 30
+          
+          # Health check
+          echo "Performing health check..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/games/current || echo "000")
+          
+          if [ "$response" = "200" ]; then
+            echo "✅ Health check passed - Application is running"
+            exit 0
+          else
+            echo "❌ Health check failed - HTTP status: $response"
+            echo "Container logs:"
+            docker-compose logs --tail=20
+            exit 1
+          fi
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "🚀 Deployment successful!"
+        else
+          echo "💥 Deployment failed!"
+        fi
