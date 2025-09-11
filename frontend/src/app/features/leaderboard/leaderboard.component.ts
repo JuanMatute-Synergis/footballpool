@@ -10,59 +10,65 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
   standalone: true,
   imports: [CommonModule, FormsModule, NavigationComponent],
   template: `
-    <div class="min-h-screen bg-gray-50">
+    <div class="h-screen bg-gray-50 flex flex-col">
       <!-- Navigation -->
       <app-navigation 
         title="Leaderboards" 
         subtitle="Track your progress and compete with others">
       </app-navigation>
 
-      <!-- Content -->
-      <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div class="px-4 py-6 sm:px-0">
-          
-          <!-- Tabs -->
-          <div class="border-b border-gray-200">
-            <nav class="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
-              <button 
-                (click)="setActiveTab('weekly')"
-                [class]="activeTab === 'weekly' 
-                  ? 'border-blue-500 text-blue-600 py-2 px-4 border-b-2 font-medium text-sm focus:outline-none' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-2 px-4 border-b-2 font-medium text-sm focus:outline-none'">
-                Weekly
-              </button>
-              <button 
-                (click)="setActiveTab('season')"
-                [class]="activeTab === 'season' 
-                  ? 'border-blue-500 text-blue-600 py-2 px-4 border-b-2 font-medium text-sm focus:outline-none' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-2 px-4 border-b-2 font-medium text-sm focus:outline-none'">
-                Season
-              </button>
-              <button 
-                (click)="setActiveTab('winners')"
-                [class]="activeTab === 'winners' 
-                  ? 'border-blue-500 text-blue-600 py-2 px-4 border-b-2 font-medium text-sm focus:outline-none' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-2 px-4 border-b-2 font-medium text-sm focus:outline-none'">
-                Winners
-              </button>
-            </nav>
-          </div>
+      <!-- Tabs section - fixed height -->
+      <div class="flex-shrink-0 bg-white border-b">
+        <div class="max-w-7xl mx-auto px-6">
+          <nav class="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
+            <button 
+              (click)="setActiveTab('weekly')"
+              [class]="activeTab === 'weekly' 
+                ? 'border-blue-500 text-blue-600 py-4 px-4 border-b-2 font-medium text-sm focus:outline-none whitespace-nowrap' 
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-4 border-b-2 font-medium text-sm focus:outline-none whitespace-nowrap'">
+              Weekly
+            </button>
+            <button 
+              (click)="setActiveTab('season')"
+              [class]="activeTab === 'season' 
+                ? 'border-blue-500 text-blue-600 py-4 px-4 border-b-2 font-medium text-sm focus:outline-none whitespace-nowrap' 
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-4 border-b-2 font-medium text-sm focus:outline-none whitespace-nowrap'">
+              Season
+            </button>
+            <button 
+              (click)="setActiveTab('winners')"
+              [class]="activeTab === 'winners' 
+                ? 'border-blue-500 text-blue-600 py-4 px-4 border-b-2 font-medium text-sm focus:outline-none whitespace-nowrap' 
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-4 border-b-2 font-medium text-sm focus:outline-none whitespace-nowrap'">
+              Winners
+            </button>
+          </nav>
+        </div>
+      </div>
 
-          <!-- Loading -->
-          <div *ngIf="loading" class="text-center py-8">
+      <!-- Main content area - takes remaining height -->
+      <div class="flex-1 overflow-hidden">
+        <!-- Loading -->
+        <div *ngIf="loading" class="flex items-center justify-center h-full">
+          <div class="text-center">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <p class="mt-2 text-gray-600">Loading...</p>
           </div>
+        </div>
 
-          <!-- Error -->
-          <div *ngIf="error" class="bg-red-50 border border-red-200 rounded-lg p-4 my-6">
+        <!-- Error -->
+        <div *ngIf="error" class="flex items-center justify-center h-full p-6">
+          <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
             <p class="text-red-800">{{ error }}</p>
-            <button (click)="loadData()" class="mt-2 btn-primary">Try Again</button>
+            <button (click)="loadData()" class="mt-4 btn-primary">Try Again</button>
           </div>
+        </div>
 
-          <!-- Weekly Tab -->
-          <div *ngIf="activeTab === 'weekly' && !loading && !error" class="mt-6">
-            <div class="flex flex-col space-y-3 mb-4 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
+        <!-- Weekly Tab -->
+        <div *ngIf="activeTab === 'weekly' && !loading && !error" class="h-full flex flex-col">
+          <!-- Controls section -->
+          <div class="flex-shrink-0 px-6 py-4 bg-white border-b">
+            <div class="flex flex-col space-y-3 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
               <h2 class="text-lg font-semibold">Week {{ currentWeek }} Leaderboard</h2>
               <div class="flex space-x-2">
                 <select [(ngModel)]="selectedWeek" (ngModelChange)="loadWeeklyLeaderboard()" class="input-field text-sm">
@@ -70,149 +76,162 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                 </select>
               </div>
             </div>
-
-            <div class="card overflow-hidden">
-              <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Rank</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Player</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Correct</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Bonus</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Total</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">MNF Diff</th>
-                    </tr>
-                  </thead>
-                  <tbody class="bg-white divide-y divide-gray-200">
-                    <tr *ngFor="let entry of weeklyLeaderboard; let i = index" 
-                        [class]="entry.userId === currentUserId ? 'bg-blue-50' : ''">
-                      <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sm:px-6">
-                        <div class="flex items-center">
-                          <span [class]="getRankClass(entry.rank)">{{ entry.rank }}</span>
-                          <div *ngIf="entry.rank === 1" class="ml-2 flex items-center">
-                            <span class="text-yellow-500 text-lg">🏆</span>
-                            <span *ngIf="hasWeeklyTiebreaker()" class="ml-1 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker Used</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="px-3 py-4 text-sm text-gray-900 sm:px-6">
-                        <div class="truncate max-w-32 sm:max-w-none">
-                          {{ entry.firstName }} {{ entry.lastName }}
-                          <span *ngIf="entry.userId === currentUserId" class="ml-2 text-blue-600 font-medium">(You)</span>
-                        </div>
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
-                        {{ entry.correctPicks }}/{{ entry.totalPicks }}
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
-                        <span *ngIf="entry.bonusPoints" class="text-green-600 font-medium">+{{ entry.bonusPoints }}</span>
-                        <span *ngIf="!entry.bonusPoints">-</span>
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm font-bold text-gray-900 sm:px-6">
-                        {{ entry.totalPoints }}
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500 sm:px-6">
-                        <span *ngIf="entry.mondayNightDiff !== null">{{ entry.mondayNightDiff }}</span>
-                        <span *ngIf="entry.mondayNightDiff === null">-</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
 
-          <!-- Season Tab -->
-          <div *ngIf="activeTab === 'season' && !loading && !error" class="mt-6">
-            <div class="flex justify-between items-center mb-4">
+          <!-- Scrollable table content -->
+          <div class="flex-1 overflow-auto bg-white">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr class="bg-gray-50 sticky top-0 z-10">
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Rank</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Player</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Correct</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Bonus</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Total</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">MNF Diff</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr *ngFor="let entry of weeklyLeaderboard; let i = index" 
+                    [class]="entry.userId === currentUserId ? 'bg-blue-50' : ''">
+                  <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sm:px-6">
+                    <div class="flex items-center">
+                      <span [class]="getRankClass(entry.rank)">{{ entry.rank }}</span>
+                      <div *ngIf="entry.rank === 1" class="ml-2 flex items-center">
+                        <span class="text-yellow-500 text-lg">🏆</span>
+                        <span *ngIf="hasWeeklyTiebreaker()" class="ml-1 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker Used</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-3 py-4 text-sm text-gray-900 sm:px-6">
+                    <div class="truncate max-w-32 sm:max-w-none">
+                      {{ entry.firstName }} {{ entry.lastName }}
+                      <span *ngIf="entry.userId === currentUserId" class="ml-2 text-blue-600 font-medium">(You)</span>
+                    </div>
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
+                    {{ entry.correctPicks }}/{{ entry.totalPicks }}
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
+                    <span *ngIf="entry.bonusPoints" class="text-green-600 font-medium">+{{ entry.bonusPoints }}</span>
+                    <span *ngIf="!entry.bonusPoints">-</span>
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm font-bold text-gray-900 sm:px-6">
+                    {{ entry.totalPoints }}
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500 sm:px-6">
+                    <span *ngIf="entry.mondayNightDiff !== null">{{ entry.mondayNightDiff }}</span>
+                    <span *ngIf="entry.mondayNightDiff === null">-</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Season Tab -->
+        <div *ngIf="activeTab === 'season' && !loading && !error" class="h-full flex flex-col">
+          <!-- Controls section -->
+          <div class="flex-shrink-0 px-6 py-4 bg-white border-b">
+            <div class="flex justify-between items-center">
               <h2 class="text-lg font-semibold">{{ currentSeason }} Season Leaderboard</h2>
             </div>
+          </div>
 
-            <div class="card overflow-hidden">
-              <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Rank</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Player</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Weeks</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Correct</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Perfect</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Total Pts</th>
-                      <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Avg/Week</th>
-                    </tr>
-                  </thead>
-                  <tbody class="bg-white divide-y divide-gray-200">
-                    <tr *ngFor="let entry of seasonLeaderboard" 
-                        [class]="entry.userId === currentUserId ? 'bg-blue-50' : ''">
-                      <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sm:px-6">
-                        <span [class]="getRankClass(entry.rank)">{{ entry.rank }}</span>
-                      </td>
-                      <td class="px-3 py-4 text-sm text-gray-900 sm:px-6">
-                        <div class="truncate max-w-32 sm:max-w-none">
-                          {{ entry.firstName }} {{ entry.lastName }}
-                          <span *ngIf="entry.userId === currentUserId" class="ml-2 text-blue-600 font-medium">(You)</span>
-                        </div>
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
-                        {{ entry.weeksPlayed }}
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
-                        {{ entry.totalCorrectPicks }}/{{ entry.totalPicks }}
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
-                        <span *ngIf="entry.perfectWeeks" class="text-green-600 font-medium">{{ entry.perfectWeeks }}</span>
-                        <span *ngIf="!entry.perfectWeeks">0</span>
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm font-bold text-gray-900 sm:px-6">
-                        {{ entry.totalPoints }}
-                      </td>
-                      <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500 sm:px-6">
-                        {{ entry.avgWeeklyPoints }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+          <!-- Scrollable table content -->
+          <div class="flex-1 overflow-auto bg-white">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr class="bg-gray-50 sticky top-0 z-10">
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Rank</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Player</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Weeks</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Correct</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Perfect</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Total Pts</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Avg/Week</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr *ngFor="let entry of seasonLeaderboard" 
+                    [class]="entry.userId === currentUserId ? 'bg-blue-50' : ''">
+                  <td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sm:px-6">
+                    <span [class]="getRankClass(entry.rank)">{{ entry.rank }}</span>
+                  </td>
+                  <td class="px-3 py-4 text-sm text-gray-900 sm:px-6">
+                    <div class="truncate max-w-32 sm:max-w-none">
+                      {{ entry.firstName }} {{ entry.lastName }}
+                      <span *ngIf="entry.userId === currentUserId" class="ml-2 text-blue-600 font-medium">(You)</span>
+                    </div>
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
+                    {{ entry.weeksPlayed }}
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
+                    {{ entry.totalCorrectPicks }}/{{ entry.totalPicks }}
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 sm:px-6">
+                    <span *ngIf="entry.perfectWeeks" class="text-green-600 font-medium">{{ entry.perfectWeeks }}</span>
+                    <span *ngIf="!entry.perfectWeeks">0</span>
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm font-bold text-gray-900 sm:px-6">
+                    {{ entry.totalPoints }}
+                  </td>
+                  <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500 sm:px-6">
+                    {{ entry.avgWeeklyPoints }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Winners Tab -->
+        <div *ngIf="activeTab === 'winners' && !loading && !error" class="h-full overflow-auto p-6">
+          <h2 class="text-lg font-semibold mb-6 sticky top-0 bg-gray-50 py-2">Recent Weekly Winners</h2>
+
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div *ngFor="let winner of weeklyWinners" class="card p-4 sm:p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-base sm:text-lg font-semibold">Week {{ winner.week }}</div>
+                <div class="flex items-center space-x-2">
+                  <div class="text-xl sm:text-2xl">🏆</div>
+                  <span *ngIf="winner.tieBreakerDiff !== null" class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker</span>
+                </div>
+              </div>
+              <div class="text-lg sm:text-2xl font-bold text-blue-600 mb-2 truncate">
+                {{ winner.firstName }} {{ winner.lastName }}
+              </div>
+              <div class="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Points: {{ winner.points }}</span>
+                <span *ngIf="winner.isTie" class="text-orange-600 font-medium">TIE</span>
+              </div>
+              <div *ngIf="winner.tieBreakerDiff !== null" class="text-xs text-gray-500">
+                <span class="font-medium">MNF Tiebreaker:</span> {{ winner.tieBreakerDiff }} point difference
               </div>
             </div>
           </div>
 
-          <!-- Winners Tab -->
-          <div *ngIf="activeTab === 'winners' && !loading && !error" class="mt-6">
-            <h2 class="text-lg font-semibold mb-4">Recent Weekly Winners</h2>
-
-            <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              <div *ngFor="let winner of weeklyWinners" class="card p-4 sm:p-6">
-                <div class="flex items-center justify-between mb-4">
-                  <div class="text-base sm:text-lg font-semibold">Week {{ winner.week }}</div>
-                  <div class="flex items-center space-x-2">
-                    <div class="text-xl sm:text-2xl">🏆</div>
-                    <span *ngIf="winner.tieBreakerDiff !== null" class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker</span>
-                  </div>
-                </div>
-                <div class="text-lg sm:text-2xl font-bold text-blue-600 mb-2 truncate">
-                  {{ winner.firstName }} {{ winner.lastName }}
-                </div>
-                <div class="flex justify-between text-sm text-gray-600 mb-2">
-                  <span>Points: {{ winner.points }}</span>
-                  <span *ngIf="winner.isTie" class="text-orange-600 font-medium">TIE</span>
-                </div>
-                <div *ngIf="winner.tieBreakerDiff !== null" class="text-xs text-gray-500">
-                  <span class="font-medium">MNF Tiebreaker:</span> {{ winner.tieBreakerDiff }} point difference
-                </div>
-              </div>
-            </div>
-
-            <div *ngIf="weeklyWinners.length === 0" class="text-center py-8 text-gray-500">
-              No weekly winners yet. Be the first!
-            </div>
+          <div *ngIf="weeklyWinners.length === 0" class="text-center py-8 text-gray-500">
+            No weekly winners yet. Be the first!
           </div>
         </div>
       </div>
     </div>
   `,
-  styles: []
+  styles: [`
+    /* Smooth scrolling */
+    .overflow-auto {
+      scroll-behavior: smooth;
+    }
+    
+    /* Ensure sticky headers work correctly */
+    thead tr {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+  `]
 })
 export class LeaderboardComponent implements OnInit {
   private leaderboardService = inject(LeaderboardService);
