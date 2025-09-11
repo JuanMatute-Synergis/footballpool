@@ -112,6 +112,18 @@ jobs:
     - name: Build new image safely
       run: |
         echo "Building new container image (data directory excluded via .dockerignore)..."
+        
+        # Unlock keychain to resolve Docker credential issues
+        security -v unlock-keychain ~/Library/Keychains/login.keychain-db || echo "Keychain unlock failed, continuing..."
+        
+        # Clear Docker credentials and cache
+        docker logout || true
+        docker system prune -f || true
+        
+        # Set Docker to not use credential helpers for this build
+        export DOCKER_CONFIG=$(mktemp -d)
+        echo '{}' > "$DOCKER_CONFIG/config.json"
+        
         docker compose build --no-cache
 
     - name: Deploy with zero-downtime data protection
