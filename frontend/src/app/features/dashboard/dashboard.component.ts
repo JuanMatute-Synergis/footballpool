@@ -145,21 +145,21 @@ import { environment } from '../../../environments/environment';
                        class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div class="flex items-center space-x-3">
                       <div class="flex items-center space-x-2">
-                        <img [src]="getTeamLogo(game.visitorTeam?.abbreviation || '')" 
-                             [alt]="game.visitorTeam?.name || 'Visitor Team'" 
+                        <img [src]="getTeamLogo(game.visitorTeam.abbreviation || '')" 
+                             [alt]="game.visitorTeam.name || 'Visitor Team'" 
                              class="w-6 h-6 object-contain"
-                             (error)="handleImageError($event, game.visitorTeam?.abbreviation || '')"
+                             (error)="handleImageError($event, game.visitorTeam.abbreviation || '')"
                              loading="lazy">
-                        <span class="font-medium">{{ game.visitorTeam?.name || 'Unknown' }}</span>
+                        <span class="font-medium">{{ game.visitorTeam.name || 'Unknown' }}</span>
                       </div>
                       <span class="text-gray-400">&#64;</span>
                       <div class="flex items-center space-x-2">
-                        <img [src]="getTeamLogo(game.homeTeam?.abbreviation || '')" 
-                             [alt]="game.homeTeam?.name || 'Home Team'" 
+                        <img [src]="getTeamLogo(game.homeTeam.abbreviation || '')" 
+                             [alt]="game.homeTeam.name || 'Home Team'" 
                              class="w-6 h-6 object-contain"
-                             (error)="handleImageError($event, game.homeTeam?.abbreviation || '')"
+                             (error)="handleImageError($event, game.homeTeam.abbreviation || '')"
                              loading="lazy">
-                        <span class="font-medium">{{ game.homeTeam?.name || 'Unknown' }}</span>
+                        <span class="font-medium">{{ game.homeTeam.name || 'Unknown' }}</span>
                       </div>
                       <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
                     </div>
@@ -176,23 +176,23 @@ import { environment } from '../../../environments/environment';
                          class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div class="flex items-center space-x-3">
                         <div class="flex items-center space-x-2">
-                          <img [src]="getTeamLogo(game.visitorTeam?.abbreviation || '')" 
-                               [alt]="game.visitorTeam?.name || 'Visitor Team'" 
+                          <img [src]="getTeamLogo(game.visitorTeam.abbreviation || '')" 
+                               [alt]="game.visitorTeam.name || 'Visitor Team'" 
                                class="w-6 h-6 object-contain"
-                               (error)="handleImageError($event, game.visitorTeam?.abbreviation || '')"
+                               (error)="handleImageError($event, game.visitorTeam.abbreviation || '')"
                                loading="lazy">
-                          <span class="font-medium">{{ game.visitorTeam?.name || 'Unknown' }}</span>
-                          <span class="text-sm font-mono">{{ game.visitorTeam?.score || 0 }}</span>
+                          <span class="font-medium">{{ game.visitorTeam.name || 'Unknown' }}</span>
+                          <span class="text-sm font-mono">{{ game.visitorTeam.score || 0 }}</span>
                         </div>
                         <span class="text-gray-400">&#64;</span>
                         <div class="flex items-center space-x-2">
-                          <img [src]="getTeamLogo(game.homeTeam?.abbreviation || '')" 
-                               [alt]="game.homeTeam?.name || 'Home Team'" 
+                          <img [src]="getTeamLogo(game.homeTeam.abbreviation || '')" 
+                               [alt]="game.homeTeam.name || 'Home Team'" 
                                class="w-6 h-6 object-contain"
-                               (error)="handleImageError($event, game.homeTeam?.abbreviation || '')"
+                               (error)="handleImageError($event, game.homeTeam.abbreviation || '')"
                                loading="lazy">
-                          <span class="font-medium">{{ game.homeTeam?.name || 'Unknown' }}</span>
-                          <span class="text-sm font-mono">{{ game.homeTeam?.score || 0 }}</span>
+                          <span class="font-medium">{{ game.homeTeam.name || 'Unknown' }}</span>
+                          <span class="text-sm font-mono">{{ game.homeTeam.score || 0 }}</span>
                         </div>
                         <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
                       </div>

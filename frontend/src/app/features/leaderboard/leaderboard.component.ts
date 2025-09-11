@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LeaderboardService } from '../../core/services/leaderboard.service';
+import { GameService } from '../../core/services/game.service';
 import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.model';
 import { NavigationComponent } from '../../shared/components/navigation.component';
 
@@ -235,6 +236,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
 })
 export class LeaderboardComponent implements OnInit {
   private leaderboardService = inject(LeaderboardService);
+  private gameService = inject(GameService);
 
   activeTab: 'weekly' | 'season' | 'winners' = 'weekly';
   loading = false;
@@ -252,10 +254,29 @@ export class LeaderboardComponent implements OnInit {
   currentUserId = 1; // This should come from AuthService
 
   ngOnInit() {
-    // Load all data on initialization
-    this.loadWeeklyLeaderboard();
-    this.loadSeasonLeaderboard();
-    this.loadWeeklyWinners();
+    // Get current week first, then load data
+    this.gameService.getCurrentWeekGames().subscribe({
+      next: (response) => {
+        // Set current week and selected week to the actual current week
+        this.currentWeek = response.week > 0 ? response.week : 1;
+        this.selectedWeek = this.currentWeek;
+        
+        // Load all data on initialization
+        this.loadWeeklyLeaderboard();
+        this.loadSeasonLeaderboard();
+        this.loadWeeklyWinners();
+      },
+      error: () => {
+        // Fallback to week 1 if there's an error
+        this.currentWeek = 1;
+        this.selectedWeek = 1;
+        
+        // Load all data on initialization
+        this.loadWeeklyLeaderboard();
+        this.loadSeasonLeaderboard();
+        this.loadWeeklyWinners();
+      }
+    });
   }
 
   setActiveTab(tab: 'weekly' | 'season' | 'winners') {
