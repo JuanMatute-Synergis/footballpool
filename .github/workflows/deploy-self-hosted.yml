@@ -124,14 +124,15 @@ jobs:
         export DOCKER_CONFIG=$(mktemp -d)
         echo '{}' > "$DOCKER_CONFIG/config.json"
         
-        docker compose build --no-cache
+        # Use docker-compose (with hyphen) instead of docker compose
+        docker-compose build --no-cache
 
     - name: Deploy with zero-downtime data protection
       run: |
         echo "Performing zero-downtime deployment..."
         
         # Stop current container gracefully
-        docker compose stop nfl-picks || true
+        docker-compose stop nfl-picks || true
         sleep 3
         
         # Verify data is still intact after stopping
@@ -149,7 +150,7 @@ jobs:
         
         # Start new container
         echo "Starting new container with volume mount verification..."
-        docker compose up -d nfl-picks
+        docker-compose up -d nfl-picks
         
         # Wait longer for proper volume mount and database initialization
         echo "Waiting for container to fully initialize with volume mount..."
@@ -157,7 +158,7 @@ jobs:
         
         # Check container logs for startup issues
         echo "=== Container startup logs ==="
-        docker compose logs --tail=10 nfl-picks
+        docker-compose logs --tail=10 nfl-picks
         
         # Critical data integrity check with more attempts and patience  
         max_attempts=5
@@ -174,15 +175,15 @@ jobs:
           else
             echo "❌ Attempt $attempt/$max_attempts: User count is $user_count"
             echo "Container status:"
-            docker compose ps
+            docker-compose ps
             echo "Recent container logs:"
-            docker compose logs --tail=5 nfl-picks
+            docker-compose logs --tail=5 nfl-picks
             
             if [ $attempt -eq $max_attempts ]; then
               echo "🚨 EMERGENCY: Deploying data recovery procedures"
               
               # Emergency stop and restore
-              docker compose down
+              docker-compose down
               DATA_DIR="/Users/juanmatute/data/nfl-picks"
               
               # Try multiple backup sources in order of preference
@@ -192,7 +193,7 @@ jobs:
               if [ -f "$DATA_DIR/database.sqlite.pre-deploy" ]; then
                 echo "Restoring from pre-deployment backup..."
                 cp "$DATA_DIR/database.sqlite.pre-deploy" "$DATA_DIR/database.sqlite"
-                docker compose up -d nfl-picks
+                docker-compose up -d nfl-picks
                 sleep 15
                 
                 # Verify emergency restoration
@@ -210,7 +211,7 @@ jobs:
                 if [ -f "$emergency_backup" ]; then
                   echo "Restoring from emergency backup: $emergency_backup"
                   cp "$emergency_backup" "$DATA_DIR/database.sqlite"
-                  docker compose up -d nfl-picks
+                  docker-compose up -d nfl-picks
                   sleep 15
                   
                   user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
@@ -228,7 +229,7 @@ jobs:
                 if [ -f "$recent_backup" ]; then
                   echo "Restoring from recent backup: $recent_backup"
                   cp "$recent_backup" "/Users/juanmatute/data/nfl-picks/database.sqlite"
-                  docker compose up -d nfl-picks
+                  docker-compose up -d nfl-picks
                   sleep 15
                   
                   user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
@@ -288,7 +289,7 @@ jobs:
         
         echo "=== Final verification ==="
         # Check if containers are running
-        docker compose ps
+        docker-compose ps
         
         # Check database integrity
         if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite" ]; then
@@ -313,9 +314,9 @@ jobs:
                 # Emergency restoration from pre-deployment backup
                 if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy" ]; then
                   echo "🚨 Attempting emergency restoration from pre-deployment backup..."
-                  docker compose down
+                  docker-compose down
                   cp /Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy /Users/juanmatute/data/nfl-picks/database.sqlite
-                  docker compose up -d
+                  docker-compose up -d
                   sleep 15
                   
                   # Verify restoration
@@ -357,7 +358,7 @@ jobs:
         echo "Performing health check..."
         
         # Show container status
-        docker compose ps
+        docker-compose ps
         
         # Try health check with retries
         for i in {1..5}; do
@@ -374,7 +375,7 @@ jobs:
             if [ $i -eq 5 ]; then
               echo "❌ All health check attempts failed"
               echo "Container logs:"
-              docker compose logs --tail=20
+              docker-compose logs --tail=20
               exit 1
             fi
             sleep 10
@@ -385,6 +386,6 @@ jobs:
       if: failure()
       run: |
         echo "=== Deployment Failed - Container Status ==="
-        docker compose ps
+        docker-compose ps
         echo "=== Container Logs ==="
-        docker compose logs --tail=50
+        docker-compose logs --tail=50
