@@ -242,9 +242,24 @@ export class ResultsGridComponent implements OnInit {
       } catch (e) {
         console.warn('ResultsGrid: profile fetch failed (continuing with fallback)', e);
       } finally {
+        // Load current week first, then load the grid
+        await this.loadCurrentWeek();
         this.loadGrid();
       }
     })();
+  }
+
+  async loadCurrentWeek() {
+    try {
+      // Use getCurrentWeekGamesForDisplay to get the week that switches on Wednesday
+      const response = await firstValueFrom(this.gameService.getCurrentWeekGamesForDisplay());
+      if (response.week > 0) {
+        this.selectedWeek = response.week;
+      }
+    } catch (error) {
+      console.warn('Failed to get current week, using default week 1', error);
+      // Keep default selectedWeek = 1
+    }
   }
 
   async loadGrid() {

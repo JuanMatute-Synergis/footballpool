@@ -46,32 +46,32 @@ RUN mkdir -p /app/data
 
 # Start command with volume mount verification - no seed execution needed
 CMD ["sh", "-c", "\
-echo 'Starting NFL Picks application...'; \
-\
-# Wait for volume mount to be ready (production deployment timing fix) \
-if [ \"$NODE_ENV\" = \"production\" ]; then \
-  echo 'Production mode: Waiting for volume mount to be ready...'; \
-  for i in $(seq 1 10); do \
+    echo 'Starting NFL Picks application...'; \
+    \
+    # Wait for volume mount to be ready (production deployment timing fix) \
+    if [ \"$NODE_ENV\" = \"production\" ]; then \
+    echo 'Production mode: Waiting for volume mount to be ready...'; \
+    for i in $(seq 1 10); do \
     if mountpoint -q /app/data 2>/dev/null || [ -w /app/data ]; then \
-      echo 'Volume mount is ready'; \
-      break; \
+    echo 'Volume mount is ready'; \
+    break; \
     fi; \
     echo \"Waiting for volume mount... attempt $i/10\"; \
     sleep 2; \
-  done; \
-  \
-  # Verify we can write to the data directory \
-  if [ ! -w /app/data ]; then \
+    done; \
+    \
+    # Verify we can write to the data directory \
+    if [ ! -w /app/data ]; then \
     echo 'ERROR: /app/data is not writable - volume mount may have failed'; \
     exit 1; \
-  fi; \
-  \
-  echo 'Volume mount verified, proceeding with application startup...'; \
-fi; \
-\
-# Database schema will be automatically initialized by the application \
-echo 'Database schema will be initialized by application on startup...'; \
-\
-# Start the application \
-echo 'Starting application server...'; \
-npm start"]
+    fi; \
+    \
+    echo 'Volume mount verified, proceeding with application startup...'; \
+    fi; \
+    \
+    # Database schema will be automatically initialized by the application \
+    echo 'Database schema will be initialized by application on startup...'; \
+    \
+    # Start the application \
+    echo 'Starting application server...'; \
+    npm start"]
