@@ -76,9 +76,9 @@ import { environment } from '../../../environments/environment';
               </div>
               
               <div class="card p-6 text-center">
-                <h3 class="text-lg font-medium text-gray-900">Season Record</h3>
-                <p class="mt-2 text-3xl font-extrabold text-green-600">{{ seasonCorrect }}-{{ seasonWrong }}</p>
-                <p class="mt-1 text-gray-500">{{ seasonPercentage }}% correct</p>
+                <h3 class="text-lg font-medium text-gray-900">This Week's Record</h3>
+                <p class="mt-2 text-3xl font-extrabold text-green-600">{{ weekCorrect }}-{{ weekWrong }}</p>
+                <p class="mt-1 text-gray-500">{{ weekPercentage }}% correct</p>
               </div>
               
               <div class="card p-6 text-center">
@@ -316,8 +316,8 @@ export class DashboardComponent implements OnInit {
 
   // Stats
   currentWeekPicks = 0;
-  seasonCorrect = 0;
-  seasonWrong = 0;
+  weekCorrect = 0;
+  weekWrong = 0;
   currentRank = 0;
   totalPoints = 0;
 
@@ -344,9 +344,9 @@ export class DashboardComponent implements OnInit {
     return this.currentWeekPicks >= this.upcomingGames.length;
   }
 
-  get seasonPercentage(): string {
-    const total = this.seasonCorrect + this.seasonWrong;
-    return total > 0 ? ((this.seasonCorrect / total) * 100).toFixed(1) : '0.0';
+  get weekPercentage(): string {
+    const total = this.weekCorrect + this.weekWrong;
+    return total > 0 ? ((this.weekCorrect / total) * 100).toFixed(1) : '0.0';
   }
 
   ngOnInit() {
@@ -447,11 +447,11 @@ export class DashboardComponent implements OnInit {
   }
 
   calculateStats() {
-    // Calculate season stats from picks
+    // Calculate current week stats from picks
     const correctPicks = this.userPicks.filter(pick => pick.isCorrect === true).length;
     const incorrectPicks = this.userPicks.filter(pick => pick.isCorrect === false).length;
-    this.seasonCorrect = correctPicks;
-    this.seasonWrong = incorrectPicks;
+    this.weekCorrect = correctPicks;
+    this.weekWrong = incorrectPicks;
   }
 
   formatGameTime(gameTime: string): string {
