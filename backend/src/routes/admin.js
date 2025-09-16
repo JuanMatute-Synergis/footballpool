@@ -31,5 +31,7 @@ router.post('/clear-cache', adminController.clearCache);
 // Scoring management
 router.post('/recalculate-scores', adminController.recalculateScores);
 router.post('/auto-calculate-scores', adminController.autoCalculateAllScores);
+router.get('/scoring-health', adminController.getScoringHealth);
+router.get('/verify-scoring', adminController.verifyScoringAccuracy);
 
 module.exports = router;

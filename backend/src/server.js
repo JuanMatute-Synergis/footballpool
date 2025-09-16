@@ -24,6 +24,7 @@ const adminRoutes = require('./routes/admin');
 
 const { initializeDatabase } = require('./models/database');
 const { scheduleDataFetch } = require('./services/scheduler');
+const scoringService = require('./services/scoring');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -209,6 +210,28 @@ async function startServer() {
     // Start the data fetch scheduler
     scheduleDataFetch();
     console.log('Data fetch scheduler started');
+
+    // Start scoring monitoring (check every 30 minutes)
+    setInterval(async () => {
+      try {
+        console.log('[SCORING MONITOR] Running periodic scoring check');
+        await scoringService.autoCalculateScores();
+      } catch (error) {
+        console.error('[SCORING MONITOR] Error in periodic scoring check:', error);
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    // Run initial scoring check after startup
+    setTimeout(async () => {
+      try {
+        console.log('[SCORING MONITOR] Running initial scoring check');
+        await scoringService.autoCalculateScores();
+      } catch (error) {
+        console.error('[SCORING MONITOR] Error in initial scoring check:', error);
+      }
+    }, 5000); // 5 seconds after startup
+
+    console.log('Scoring monitoring started (checks every 30 minutes)');
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

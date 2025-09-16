@@ -556,21 +556,70 @@ const autoCalculateAllScores = async (req, res) => {
   }
 };
 
+const getScoringHealth = async (req, res) => {
+  try {
+    console.log('Getting scoring service health status');
+    
+    const health = await scoringService.getScoringHealth();
+    
+    res.json({
+      ...health,
+      message: 'Scoring health check completed'
+    });
+  } catch (error) {
+    console.error('Error getting scoring health:', error);
+    res.status(500).json({ message: 'Failed to get scoring health', error: error.message });
+  }
+};
+
+const verifyScoringAccuracy = async (req, res) => {
+  try {
+    const { week, season } = req.query;
+
+    if (!week || !season) {
+      return res.status(400).json({ message: 'Week and season are required' });
+    }
+
+    console.log(`Verifying scoring accuracy for week ${week}, season ${season}`);
+
+    const discrepancies = await scoringService.verifyScoringAccuracy(parseInt(week), parseInt(season));
+
+    res.json({
+      week: parseInt(week),
+      season: parseInt(season),
+      discrepancies,
+      isAccurate: discrepancies.length === 0,
+      message: discrepancies.length === 0 
+        ? 'All scores are accurate' 
+        : `Found ${discrepancies.length} scoring discrepancies`
+    });
+  } catch (error) {
+    console.error('Error verifying scoring accuracy:', error);
+    res.status(500).json({ message: 'Failed to verify scoring accuracy' });
+  }
+};
+
 module.exports = {
   getAllUsers,
   createUser,
   updateUser,
   updateUserRole,
   deleteUser,
+  getAllPicks: getAllPicksAdmin,
   getAllPicksAdmin,
   updatePick,
+  updateGameScore,
   updateGameScores,
+  simulateGames,
   syncTeams,
   syncSchedule,
+  syncGameStatus,
   syncFullSeason,
   clearCache,
   syncTeamLogos,
   resetUserPassword,
   recalculateScores,
-  autoCalculateAllScores
+  autoCalculateAllScores,
+  getScoringHealth,
+  verifyScoringAccuracy
 };
