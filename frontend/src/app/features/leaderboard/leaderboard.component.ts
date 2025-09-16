@@ -197,7 +197,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                 <div class="text-base sm:text-lg font-semibold">Week {{ winner.week }}</div>
                 <div class="flex items-center space-x-2">
                   <div class="text-xl sm:text-2xl">🏆</div>
-                  <span *ngIf="winner.tieBreakerDiff !== null" class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker</span>
+                  <span *ngIf="winner.tiebreakerUsed" class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker</span>
                 </div>
               </div>
               <div class="text-lg sm:text-2xl font-bold text-blue-600 mb-2 truncate">
@@ -207,7 +207,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                 <span>Points: {{ winner.points }}</span>
                 <span *ngIf="winner.isTie" class="text-orange-600 font-medium">TIE</span>
               </div>
-              <div *ngIf="winner.tieBreakerDiff !== null" class="text-xs text-gray-500">
+              <div *ngIf="winner.tiebreakerUsed" class="text-xs text-gray-500">
                 <span class="font-medium">MNF Tiebreaker:</span> {{ winner.tieBreakerDiff }} point difference
               </div>
             </div>
