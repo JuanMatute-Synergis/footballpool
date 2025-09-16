@@ -1,4 +1,4 @@
-const { getAllQuery } = require('../models/database');
+const { getAllQuery, getQuery } = require('../models/database');
 const nflApiService = require('../services/nfl-api');
 
 const getWeeklyLeaderboard = async (req, res) => {
@@ -177,8 +177,18 @@ const getWeeklyWinners = async (req, res) => {
 
     const winners = await getAllQuery(query, params);
 
-    res.json({
-      winners: winners.map(winner => ({
+    // For each winner, verify if tiebreaker was actually used by checking if multiple people had same score
+    const winnersWithCorrectTiebreaker = await Promise.all(winners.map(async (winner) => {
+      // Check how many people had the same score in that week
+      const sameScoreCount = await getQuery(`
+        SELECT COUNT(*) as count 
+        FROM weekly_scores 
+        WHERE week = ? AND season = ? AND total_points = ?
+      `, [winner.week, winner.season, winner.points]);
+      
+      const actuallyTied = sameScoreCount.count > 1;
+      
+      return {
         week: winner.week,
         season: winner.season,
         userId: winner.user_id,
@@ -187,8 +197,12 @@ const getWeeklyWinners = async (req, res) => {
         points: winner.points,
         isTie: winner.is_tie,
         tieBreakerDiff: winner.tie_breaker_diff,
-        tiebreakerUsed: winner.is_tie === 1 && winner.tie_breaker_diff !== null
-      }))
+        tiebreakerUsed: actuallyTied && winner.tie_breaker_diff !== null
+      };
+    }));
+
+    res.json({
+      winners: winnersWithCorrectTiebreaker
     });
   } catch (error) {
     console.error('Error getting weekly winners:', error);
