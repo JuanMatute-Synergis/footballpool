@@ -146,7 +146,7 @@ class NFLApiService {
     }
   }
 
-  // Get current NFL week (allows picks for next week starting Tuesday)
+  // Get current NFL week (allows picks for next week starting Wednesday)
   getCurrentWeek() {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -164,14 +164,14 @@ class NFLApiService {
       const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
       week = Math.max(1, Math.min(weeksSinceStart + 1, 18));
 
-      // Allow picks for next week starting Tuesday (standard practice)
-      // Since games often start Thursday, users need time to make picks
+      // Allow picks for next week starting Wednesday (day 3)
+      // This aligns with the display logic and gives users time to see results
       const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
       const currentWeekStart = this.getWeekStartDate(week, season);
       const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
 
-      // If it's Tuesday (day 2) or later in the current week, allow picks for next week
-      if (dayOfWeek >= 2 && daysIntoWeek >= 2 && week < 18) {
+      // If it's Wednesday (day 3) or later in the current week, allow picks for next week
+      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < 18) {
         week = week + 1;
       }
     } else if (currentMonth <= 1) {
@@ -207,7 +207,7 @@ class NFLApiService {
       week = Math.max(1, Math.min(weeksSinceStart + 1, 18));
 
       // Dashboard switches to next week on Wednesday (day 3)
-      // This gives users Tuesday to see previous week results while making new picks
+      // This aligns with pick availability timing
       const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
       const currentWeekStart = this.getWeekStartDate(week, season);
       const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
@@ -230,13 +230,13 @@ class NFLApiService {
     return { week, season };
   }
 
-  // Check if next week picks are available (Tuesday onwards - standard practice)
+  // Check if next week picks are available (Wednesday onwards - aligned with display logic)
   isNextWeekPicksAvailable() {
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
 
-    // Allow next week picks from Tuesday (day 2) onwards
-    return dayOfWeek >= 2;
+    // Allow next week picks from Wednesday (day 3) onwards
+    return dayOfWeek >= 3;
   }
 
   // Fetch NFL schedule for a specific week
