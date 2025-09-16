@@ -170,7 +170,7 @@ class ScoringService {
 
       // If multiple winners, use Monday night tie-breaker
       let finalWinners = winners;
-      const isTie = winners.length > 1;
+      const isTie = winners.length > 1; // True if there was initially a tie requiring tiebreaker
 
       if (isTie) {
         // Find winners with best Monday night prediction (lowest diff)
@@ -192,7 +192,7 @@ class ScoringService {
           week,
           season,
           winner.total_points,
-          finalWinners.length > 1 ? 1 : 0,
+          isTie ? 1 : 0, // Set to 1 if there was originally a tie requiring tiebreaker
           winner.monday_night_diff
         ]);
       }
