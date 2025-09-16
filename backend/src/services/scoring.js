@@ -125,6 +125,23 @@ class ScoringService {
   // Determine weekly winners
   async determineWeeklyWinners(week, season) {
     try {
+      // Check if ALL games for the week are completed
+      const allGames = await getAllQuery(`
+        SELECT COUNT(*) as total_games, 
+               COUNT(CASE WHEN status = 'final' THEN 1 END) as completed_games
+        FROM games 
+        WHERE week = ? AND season = ?
+      `, [week, season]);
+
+      const isWeekComplete = allGames[0].total_games === allGames[0].completed_games;
+      
+      if (!isWeekComplete) {
+        console.log(`Week ${week} not complete - ${allGames[0].completed_games}/${allGames[0].total_games} games finished`);
+        return; // Don't declare winners until all games are completed
+      }
+
+      console.log(`All games completed for week ${week}, determining winners...`);
+
       // Clear existing winners for this week
       await runQuery('DELETE FROM weekly_winners WHERE week = ? AND season = ?', [week, season]);
 

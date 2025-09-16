@@ -187,7 +187,7 @@ const getWeeklyWinners = async (req, res) => {
         points: winner.points,
         isTie: winner.is_tie,
         tieBreakerDiff: winner.tie_breaker_diff,
-        tiebreakerUsed: winner.tie_breaker_diff !== null && winner.tie_breaker_diff !== undefined
+        tiebreakerUsed: winner.is_tie === 1 && winner.tie_breaker_diff !== null
       }))
     });
   } catch (error) {

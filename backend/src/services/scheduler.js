@@ -139,8 +139,10 @@ function scheduleDataFetch() {
               // Check if any games just finished and recalculate scores immediately
               const justFinishedGames = liveGames.filter(game => game.status === 'final');
               if (justFinishedGames.length > 0) {
-                console.log(`${justFinishedGames.length} games just finished, recalculating scores immediately...`);
+                console.log(`${justFinishedGames.length} games just finished, recalculating scores...`);
                 try {
+                  // Always recalculate scores to update user stats, but winner determination
+                  // will only happen if all games are complete (handled in scoring service)
                   await scoringService.calculateWeeklyScores(week, season);
                 } catch (scoreErr) {
                   console.error('Error calculating scores:', scoreErr.message);
