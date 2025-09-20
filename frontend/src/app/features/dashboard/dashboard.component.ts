@@ -66,33 +66,6 @@ import { environment } from '../../../environments/environment';
                 NFL Picks - Week {{ currentWeek }} of {{ currentSeason }}
               </p>
             </div>
-            
-            <!-- Quick Stats -->
-            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              <div class="card p-6 text-center">
-                <h3 class="text-lg font-medium text-gray-900">Picks This Week</h3>
-                <p class="mt-2 text-3xl font-extrabold text-blue-600">{{ currentWeekPicks }}</p>
-                <p class="mt-1 text-gray-500">out of {{ totalGames }}</p>
-              </div>
-              
-              <div class="card p-6 text-center">
-                <h3 class="text-lg font-medium text-gray-900">This Week's Record</h3>
-                <p class="mt-2 text-3xl font-extrabold text-green-600">{{ weekCorrect }}-{{ weekWrong }}</p>
-                <p class="mt-1 text-gray-500">{{ weekPercentage }}% correct</p>
-              </div>
-              
-              <div class="card p-6 text-center">
-                <h3 class="text-lg font-medium text-gray-900">Current Rank</h3>
-                <p class="mt-2 text-3xl font-extrabold text-purple-600">#{{ currentRank || '-' }}</p>
-                <p class="mt-1 text-gray-500">This week</p>
-              </div>
-
-              <div class="card p-6 text-center">
-                <h3 class="text-lg font-medium text-gray-900">Total Points</h3>
-                <p class="mt-2 text-3xl font-extrabold text-orange-600">{{ totalPoints }}</p>
-                <p class="mt-1 text-gray-500">Season total</p>
-              </div>
-            </div>
 
             <!-- Quick Actions -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -127,6 +100,33 @@ import { environment } from '../../../environments/environment';
                 <h4 class="font-medium">Admin Panel</h4>
                 <p class="text-sm text-gray-600 mt-1">Manage users and settings</p>
               </button>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="card p-6 text-center">
+                <h3 class="text-lg font-medium text-gray-900">Picks This Week</h3>
+                <p class="mt-2 text-3xl font-extrabold text-blue-600">{{ currentWeekPicks }}</p>
+                <p class="mt-1 text-gray-500">out of {{ totalGames }}</p>
+              </div>
+              
+              <div class="card p-6 text-center">
+                <h3 class="text-lg font-medium text-gray-900">This Week's Record</h3>
+                <p class="mt-2 text-3xl font-extrabold text-green-600">{{ weekCorrect }}-{{ weekWrong }}</p>
+                <p class="mt-1 text-gray-500">{{ weekPercentage }}% correct</p>
+              </div>
+              
+              <div class="card p-6 text-center">
+                <h3 class="text-lg font-medium text-gray-900">Current Rank</h3>
+                <p class="mt-2 text-3xl font-extrabold text-purple-600">#{{ currentRank || '-' }}</p>
+                <p class="mt-1 text-gray-500">This week</p>
+              </div>
+
+              <div class="card p-6 text-center">
+                <h3 class="text-lg font-medium text-gray-900">Total Points</h3>
+                <p class="mt-2 text-3xl font-extrabold text-orange-600">{{ totalPoints }}</p>
+                <p class="mt-1 text-gray-500">Season total</p>
+              </div>
             </div>
 
             <!-- This Week's Games Preview -->
