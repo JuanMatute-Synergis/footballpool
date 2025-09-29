@@ -55,7 +55,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                            class="w-8 h-8 object-contain"
                            (error)="handleImageError($event, g.visitorTeam?.abbreviation!)"
                            loading="lazy">
-                      <span class="font-semibold text-sm">{{ g.visitorTeam?.score || '-' }}</span>
+                      <span class="font-semibold text-sm">{{ getDisplayScore(g.visitorTeam?.score, g.status) }}</span>
                     </div>
                     <div class="text-gray-400 text-xs">&#64;</div>
                     <!-- Home Team -->  
@@ -65,7 +65,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                            class="w-8 h-8 object-contain"
                            (error)="handleImageError($event, g.homeTeam?.abbreviation!)"
                            loading="lazy">
-                      <span class="font-semibold text-sm">{{ g.homeTeam?.score || '-' }}</span>
+                      <span class="font-semibold text-sm">{{ getDisplayScore(g.homeTeam?.score, g.status) }}</span>
                     </div>
                     <!-- Game Status Indicator -->
                     <div *ngIf="g.status === 'final'" class="text-green-600 text-xs mt-1">F</div>
@@ -368,6 +368,15 @@ export class ResultsGridComponent implements OnInit {
   getUserPickCount(userId: number): number {
     if (!this.picksMap[userId]) return 0;
     return Object.keys(this.picksMap[userId]).length;
+  }
+
+  getDisplayScore(score: number | null | undefined, gameStatus: string): string {
+    // For completed games, show the actual score (including 0)
+    if (gameStatus === 'final' && score !== null && score !== undefined) {
+      return score.toString();
+    }
+    // For scheduled games or missing scores, show dash
+    return '-';
   }
 
   hasUserTiebreaker(userId: number): boolean {
