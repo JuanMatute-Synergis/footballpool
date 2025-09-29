@@ -371,8 +371,8 @@ export class ResultsGridComponent implements OnInit {
   }
 
   getDisplayScore(score: number | null | undefined, gameStatus: string): string {
-    // For completed games, show the actual score (including 0)
-    if (gameStatus === 'final' && score !== null && score !== undefined) {
+    // For completed games and live games, show the actual score (including 0)
+    if ((gameStatus === 'final' || gameStatus === 'live' || gameStatus === 'in_progress') && score !== null && score !== undefined) {
       return score.toString();
     }
     // For scheduled games or missing scores, show dash
