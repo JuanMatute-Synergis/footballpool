@@ -359,8 +359,8 @@ class NFLApiService {
               game.date,
               game.status,
               game.live_status,
-              game.home_team_score || null,
-              game.visitor_team_score || null,
+              typeof game.home_team_score === 'number' ? game.home_team_score : null,
+              typeof game.visitor_team_score === 'number' ? game.visitor_team_score : null,
               game.home_team_q1,
               game.home_team_q2,
               game.home_team_q3,
@@ -718,8 +718,8 @@ class NFLApiService {
         visitor_team_id: g.visitor_team.id,
         date: g.date,
         status: this.normalizeGameStatus(g.status),
-        home_team_score: g.home_team_score || null,
-        visitor_team_score: g.visitor_team_score || null,
+        home_team_score: typeof g.home_team_score === 'number' ? g.home_team_score : null,
+        visitor_team_score: typeof g.visitor_team_score === 'number' ? g.visitor_team_score : null,
         is_monday_night: this.isMondayNightGame(g.date)
       })) : [];
 
@@ -841,8 +841,8 @@ class NFLApiService {
           date: game.date,
           status: this.normalizeGameStatus(game.status),
           live_status: quarterInfo.fullStatus,
-          home_team_score: game.home_team_score || null,
-          visitor_team_score: game.visitor_team_score || null,
+          home_team_score: typeof game.home_team_score === 'number' ? game.home_team_score : null,
+          visitor_team_score: typeof game.visitor_team_score === 'number' ? game.visitor_team_score : null,
           home_team_q1: game.home_team_q1 || null,
           home_team_q2: game.home_team_q2 || null,
           home_team_q3: game.home_team_q3 || null,
