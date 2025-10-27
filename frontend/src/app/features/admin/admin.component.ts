@@ -939,9 +939,13 @@ export class AdminComponent implements OnInit {
     this.error = '';
     this.success = '';
 
+    // Ensure selectedTeamId is a number (select elements return strings)
+    const selectedTeamId = parseInt(pick.selectedTeamId, 10);
+    const mondayNightPrediction = pick.mondayNightPrediction ? parseInt(pick.mondayNightPrediction, 10) : undefined;
+
     // If pick exists, update it; otherwise submit new pick
     if (pick.pickId) {
-      this.adminService.updatePick(pick.pickId, pick.selectedTeamId, pick.mondayNightPrediction).subscribe({
+      this.adminService.updatePick(pick.pickId, selectedTeamId, mondayNightPrediction).subscribe({
         next: () => {
           this.success = 'Pick updated successfully';
           this.updatingPick = false;
@@ -955,7 +959,7 @@ export class AdminComponent implements OnInit {
         }
       });
     } else {
-      this.adminService.submitPickForUser(userId, pick.gameId, pick.selectedTeamId, pick.mondayNightPrediction).subscribe({
+      this.adminService.submitPickForUser(userId, pick.gameId, selectedTeamId, mondayNightPrediction).subscribe({
         next: (response: any) => {
           pick.pickId = response.pickId;
           this.success = 'Pick submitted successfully';
