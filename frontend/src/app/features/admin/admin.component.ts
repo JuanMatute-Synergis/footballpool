@@ -301,7 +301,7 @@ interface AdminStats {
                   <div *ngFor="let pick of userData.picks" class="flex items-center justify-between border-b pb-3">
                     <div class="flex-1">
                       <div class="text-sm text-gray-600">
-                        {{ pick.visitorTeam }} @ {{ pick.homeTeam }}
+                        {{ pick.visitorTeam }} &#64; {{ pick.homeTeam }}
                       </div>
                       <div class="text-xs text-gray-500">
                         {{ pick.gameDate | date:'short' }} | Status: {{ pick.gameStatus }}
