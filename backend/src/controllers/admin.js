@@ -327,9 +327,10 @@ const updatePick = async (req, res) => {
 
     // Get the pick and game details
     const pick = await getQuery(`
-      SELECT p.*, g.home_team_id, g.visitor_team_id
+      SELECT p.*, g.home_team_id, g.visitor_team_id, g.week, g.season, u.email
       FROM picks p
       JOIN games g ON p.game_id = g.id
+      JOIN users u ON p.user_id = u.id
       WHERE p.id = ?
     `, [pickId]);
 
@@ -347,10 +348,100 @@ const updatePick = async (req, res) => {
       [selectedTeamId, mondayNightPrediction, pickId]
     );
 
+    console.log(`[ADMIN] ${req.user.email} updated pick ${pickId} for user ${pick.email} - Week ${pick.week}, Game ${pick.game_id}`);
+
     res.json({ message: 'Pick updated successfully' });
   } catch (error) {
     console.error('Error updating pick (admin):', error);
     res.status(500).json({ message: 'Failed to update pick' });
+  }
+};
+
+const submitPickForUser = async (req, res) => {
+  try {
+    const { userId, gameId, selectedTeamId, mondayNightPrediction } = req.body;
+
+    if (!userId || !gameId || !selectedTeamId) {
+      return res.status(400).json({ message: 'User ID, game ID, and selected team ID are required' });
+    }
+
+    // Get game details
+    const game = await getQuery('SELECT * FROM games WHERE id = ?', [gameId]);
+    if (!game) {
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    // Get user details
+    const user = await getQuery('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate selected team is playing in this game
+    if (selectedTeamId !== game.home_team_id && selectedTeamId !== game.visitor_team_id) {
+      return res.status(400).json({ message: 'Selected team is not playing in this game' });
+    }
+
+    // Insert or update pick (admin can override game status)
+    await runQuery(`
+      INSERT OR REPLACE INTO picks 
+      (user_id, game_id, selected_team_id, monday_night_prediction, week, season, updated_at) 
+      VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `, [userId, gameId, selectedTeamId, mondayNightPrediction, game.week, game.season]);
+
+    console.log(`[ADMIN] ${req.user.email} submitted/updated pick for user ${user.email} - Week ${game.week}, Game ${gameId}, Team ${selectedTeamId}`);
+
+    res.json({ 
+      message: 'Pick submitted successfully',
+      pick: {
+        userId,
+        gameId,
+        selectedTeamId,
+        mondayNightPrediction,
+        week: game.week,
+        season: game.season
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting pick for user (admin):', error);
+    res.status(500).json({ message: 'Failed to submit pick' });
+  }
+};
+
+const deletePickForUser = async (req, res) => {
+  try {
+    const { userId, gameId } = req.params;
+
+    // Check if pick exists
+    const pick = await getQuery(`
+      SELECT p.*, g.week, g.season, u.email
+      FROM picks p
+      JOIN games g ON p.game_id = g.id
+      JOIN users u ON p.user_id = u.id
+      WHERE p.user_id = ? AND p.game_id = ?
+    `, [userId, gameId]);
+
+    if (!pick) {
+      return res.status(404).json({ message: 'Pick not found' });
+    }
+
+    // Delete the pick
+    await runQuery('DELETE FROM picks WHERE user_id = ? AND game_id = ?', [userId, gameId]);
+
+    console.log(`[ADMIN] ${req.user.email} deleted pick for user ${pick.email} - Week ${pick.week}, Game ${gameId}`);
+
+    res.json({ 
+      message: 'Pick deleted successfully',
+      deletedPick: {
+        userId: parseInt(userId),
+        gameId: parseInt(gameId),
+        week: pick.week,
+        season: pick.season
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting pick (admin):', error);
+    res.status(500).json({ message: 'Failed to delete pick' });
   }
 };
 
@@ -559,9 +650,9 @@ const autoCalculateAllScores = async (req, res) => {
 const getScoringHealth = async (req, res) => {
   try {
     console.log('Getting scoring service health status');
-    
+
     const health = await scoringService.getScoringHealth();
-    
+
     res.json({
       ...health,
       message: 'Scoring health check completed'
@@ -589,8 +680,8 @@ const verifyScoringAccuracy = async (req, res) => {
       season: parseInt(season),
       discrepancies,
       isAccurate: discrepancies.length === 0,
-      message: discrepancies.length === 0 
-        ? 'All scores are accurate' 
+      message: discrepancies.length === 0
+        ? 'All scores are accurate'
         : `Found ${discrepancies.length} scoring discrepancies`
     });
   } catch (error) {
@@ -608,6 +699,8 @@ module.exports = {
   getAllPicks: getAllPicksAdmin,
   getAllPicksAdmin,
   updatePick,
+  submitPickForUser,
+  deletePickForUser,
   updateGameScores,
   syncTeams,
   syncSchedule,

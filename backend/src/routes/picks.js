@@ -15,4 +15,7 @@ router.get('/game/:gameId', authenticateToken, picksController.getAllPicksForGam
 // Get picks history
 router.get('/history', authenticateToken, picksController.getPicksHistory);
 
+// Get specific user's picks (admin or own picks)
+router.get('/user/:userId', authenticateToken, picksController.getSpecificUserPicks);
+
 module.exports = router;

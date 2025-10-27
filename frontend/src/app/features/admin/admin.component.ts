@@ -66,6 +66,13 @@ interface AdminStats {
                 Games
               </button>
               <button
+                (click)="activeTab = 'picks'; loadPicksManagement()"
+                [class]="activeTab === 'picks' 
+                  ? 'border-blue-500 text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm'">
+                Picks
+              </button>
+              <button
                 (click)="activeTab = 'settings'"
                 [class]="activeTab === 'settings' 
                   ? 'border-blue-500 text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm'
@@ -261,6 +268,88 @@ interface AdminStats {
             </div>
           </div>
 
+          <!-- Picks Management Tab -->
+          <div *ngIf="activeTab === 'picks' && !loading" class="space-y-6">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-lg font-semibold">Manage User Picks</h2>
+              <div class="flex space-x-2">
+                <select [(ngModel)]="picksWeek" (change)="loadPicksForWeek()" class="px-3 py-2 border rounded-md">
+                  <option *ngFor="let w of weekOptions" [value]="w">Week {{ w }}</option>
+                </select>
+                <select [(ngModel)]="picksUserId" (change)="loadPicksForWeek()" class="px-3 py-2 border rounded-md">
+                  <option [value]="0">All Users</option>
+                  <option *ngFor="let user of users" [value]="user.id">
+                    {{ user.firstName }} {{ user.lastName }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div *ngIf="loadingPicks" class="text-center py-8">
+              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p class="mt-2 text-gray-600">Loading picks...</p>
+            </div>
+
+            <div *ngIf="!loadingPicks && userPicksData.length > 0" class="space-y-6">
+              <div *ngFor="let userData of userPicksData" class="card p-6">
+                <h3 class="font-semibold text-lg mb-4">
+                  {{ userData.userName }} - Week {{ picksWeek }}
+                  <span class="text-sm font-normal text-gray-600">({{ userData.picks.length }} picks)</span>
+                </h3>
+                
+                <div class="space-y-3">
+                  <div *ngFor="let pick of userData.picks" class="flex items-center justify-between border-b pb-3">
+                    <div class="flex-1">
+                      <div class="text-sm text-gray-600">
+                        {{ pick.visitorTeam }} @ {{ pick.homeTeam }}
+                      </div>
+                      <div class="text-xs text-gray-500">
+                        {{ pick.gameDate | date:'short' }} | Status: {{ pick.gameStatus }}
+                      </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                      <select 
+                        [(ngModel)]="pick.selectedTeamId" 
+                        (change)="updatePickSelection(pick, userData.userId)"
+                        class="px-3 py-1 border rounded-md text-sm"
+                        [disabled]="updatingPick">
+                        <option [value]="pick.homeTeamId">{{ pick.homeTeam }}</option>
+                        <option [value]="pick.visitorTeamId">{{ pick.visitorTeam }}</option>
+                      </select>
+                      
+                      <input 
+                        *ngIf="pick.isMonday"
+                        type="number" 
+                        [(ngModel)]="pick.mondayNightPrediction"
+                        (change)="updatePickSelection(pick, userData.userId)"
+                        placeholder="MNF Total"
+                        class="w-20 px-2 py-1 border rounded-md text-sm"
+                        [disabled]="updatingPick">
+                      
+                      <span *ngIf="pick.gameStatus === 'final'" 
+                            [class]="pick.isCorrect ? 'text-green-600' : 'text-red-600'"
+                            class="font-semibold text-sm">
+                        {{ pick.isCorrect ? '✓' : '✗' }}
+                      </span>
+                      
+                      <button 
+                        (click)="deletePick(userData.userId, pick.gameId)"
+                        class="text-red-600 hover:text-red-800 text-sm"
+                        [disabled]="updatingPick">
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="!loadingPicks && userPicksData.length === 0" class="text-center py-8 text-gray-500">
+              No picks found for the selected criteria.
+            </div>
+          </div>
+
           <!-- Settings Tab -->
           <div *ngIf="activeTab === 'settings' && !loading" class="space-y-6">
             <h2 class="text-lg font-semibold">System Settings</h2>
@@ -337,7 +426,7 @@ export class AdminComponent implements OnInit {
   private baseUrl = environment.apiUrl;
 
 
-  activeTab: 'users' | 'games' | 'settings' = 'users';
+  activeTab: 'users' | 'games' | 'picks' | 'settings' = 'users';
   loading = false;
   error = '';
   success = '';
@@ -372,6 +461,15 @@ export class AdminComponent implements OnInit {
   selectedWeek = 1;
   availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
+  // Picks Management
+  picksWeek = 1;
+  picksSeason = new Date().getFullYear();
+  picksUserId = 0; // 0 = all users
+  userPicksData: any[] = [];
+  loadingPicks = false;
+  updatingPick = false;
+  weekOptions = Array.from({length: 18}, (_, i) => i + 1);
+
   // Settings
   currentWeekSetting = 1;
   lockMinutesSetting = 60;
@@ -382,6 +480,14 @@ export class AdminComponent implements OnInit {
 
   ngOnInit() {
     this.loadData();
+    
+    // Initialize current week based on today's date
+    const now = new Date();
+    const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
+    if (now >= seasonStart) {
+      const weeksPassed = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      this.picksWeek = Math.min(Math.max(weeksPassed + 1, 1), 18);
+    }
   }
 
   loadData() {
@@ -391,6 +497,9 @@ export class AdminComponent implements OnInit {
         break;
       case 'games':
         this.loadGames();
+        break;
+      case 'picks':
+        this.loadPicksForWeek();
         break;
       case 'settings':
         this.loadSettings();
@@ -716,5 +825,172 @@ export class AdminComponent implements OnInit {
   private loadTeamLogos(): void {
     // No longer needed - server handles everything
     // Keep method for backward compatibility but it's now a no-op
+  }
+
+  // Picks Management Methods
+  loadPicksManagement() {
+    if (!this.users.length) {
+      this.loadUsers();
+    }
+    this.loadPicksForWeek();
+  }
+
+  loadPicksForWeek() {
+    this.loadingPicks = true;
+    this.userPicksData = [];
+    this.error = '';
+
+    // Load games for the selected week
+    this.gameService.getWeekGames(this.picksSeason, this.picksWeek).subscribe({
+      next: (response: any) => {
+        const games = response.games || [];
+        
+        // If all users selected, load picks for all users
+        if (this.picksUserId === 0) {
+          const pickRequests = this.users.map(user => 
+            this.adminService.getUserPicks(user.id, this.picksWeek, this.picksSeason).toPromise()
+              .then((picks: any) => ({
+                userId: user.id,
+                userName: `${user.firstName} ${user.lastName}`,
+                picks: this.mapPicksWithGames(picks, games, user.id)
+              }))
+              .catch(() => ({
+                userId: user.id,
+                userName: `${user.firstName} ${user.lastName}`,
+                picks: []
+              }))
+          );
+
+          Promise.all(pickRequests).then(results => {
+            this.userPicksData = results.filter((r: any) => r.picks.length > 0);
+            this.loadingPicks = false;
+          }).catch(error => {
+            console.error('Error loading picks:', error);
+            this.error = 'Failed to load picks';
+            this.loadingPicks = false;
+          });
+        } else {
+          // Load picks for selected user only
+          const user = this.users.find(u => u.id === this.picksUserId);
+          if (user) {
+            this.adminService.getUserPicks(this.picksUserId, this.picksWeek, this.picksSeason).subscribe({
+              next: (picks: any) => {
+                this.userPicksData = [{
+                  userId: user.id,
+                  userName: `${user.firstName} ${user.lastName}`,
+                  picks: this.mapPicksWithGames(picks, games, user.id)
+                }];
+                this.loadingPicks = false;
+              },
+              error: (error: any) => {
+                console.error('Error loading user picks:', error);
+                this.error = 'Failed to load user picks';
+                this.loadingPicks = false;
+              }
+            });
+          } else {
+            this.loadingPicks = false;
+          }
+        }
+      },
+      error: (error: any) => {
+        console.error('Error loading games:', error);
+        this.error = 'Failed to load games';
+        this.loadingPicks = false;
+      }
+    });
+  }
+
+  private mapPicksWithGames(picks: any[], games: any[], userId: number): any[] {
+    return games.map(game => {
+      const pick = picks.find(p => p.game_id === game.id);
+      const isMonday = new Date(game.date).getDay() === 1;
+      
+      return {
+        gameId: game.id,
+        userId: userId,
+        pickId: pick?.id,
+        homeTeam: game.home_team?.city + ' ' + game.home_team?.name || 'Home Team',
+        visitorTeam: game.visitor_team?.city + ' ' + game.visitor_team?.name || 'Visitor Team',
+        homeTeamId: game.home_team_id,
+        visitorTeamId: game.visitor_team_id,
+        selectedTeamId: pick?.selected_team_id || game.home_team_id,
+        mondayNightPrediction: pick?.monday_night_prediction || null,
+        gameDate: game.date,
+        gameStatus: game.status,
+        isMonday: isMonday,
+        isCorrect: pick?.is_correct,
+        homeScore: game.home_team_score,
+        visitorScore: game.visitor_team_score
+      };
+    });
+  }
+
+  updatePickSelection(pick: any, userId: number) {
+    if (this.updatingPick) return;
+
+    this.updatingPick = true;
+    this.error = '';
+    this.success = '';
+
+    // If pick exists, update it; otherwise submit new pick
+    if (pick.pickId) {
+      this.adminService.updatePick(pick.pickId, pick.selectedTeamId, pick.mondayNightPrediction).subscribe({
+        next: () => {
+          this.success = 'Pick updated successfully';
+          this.updatingPick = false;
+          setTimeout(() => this.success = '', 2000);
+        },
+        error: (error: any) => {
+          console.error('Error updating pick:', error);
+          this.error = 'Failed to update pick';
+          this.updatingPick = false;
+          setTimeout(() => this.error = '', 3000);
+        }
+      });
+    } else {
+      this.adminService.submitPickForUser(userId, pick.gameId, pick.selectedTeamId, pick.mondayNightPrediction).subscribe({
+        next: (response: any) => {
+          pick.pickId = response.pickId;
+          this.success = 'Pick submitted successfully';
+          this.updatingPick = false;
+          setTimeout(() => this.success = '', 2000);
+        },
+        error: (error: any) => {
+          console.error('Error submitting pick:', error);
+          this.error = 'Failed to submit pick';
+          this.updatingPick = false;
+          setTimeout(() => this.error = '', 3000);
+        }
+      });
+    }
+  }
+
+  deletePick(userId: number, gameId: number) {
+    if (this.updatingPick) return;
+
+    if (!confirm('Are you sure you want to delete this pick?')) {
+      return;
+    }
+
+    this.updatingPick = true;
+    this.error = '';
+    this.success = '';
+
+    this.adminService.deletePickForUser(userId, gameId).subscribe({
+      next: () => {
+        this.success = 'Pick deleted successfully';
+        this.updatingPick = false;
+        setTimeout(() => this.success = '', 2000);
+        // Reload picks to reflect changes
+        this.loadPicksForWeek();
+      },
+      error: (error: any) => {
+        console.error('Error deleting pick:', error);
+        this.error = 'Failed to delete pick';
+        this.updatingPick = false;
+        setTimeout(() => this.error = '', 3000);
+      }
+    });
   }
 }

@@ -22,8 +22,11 @@ export class PickService {
     return this.http.get<PicksResponse>(`${environment.apiUrl}/picks`, { params });
   }
 
-  submitPick(pick: SubmitPickRequest): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${environment.apiUrl}/picks`, pick);
+  submitPick(pick: SubmitPickRequest, adminOverride: boolean = false): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${environment.apiUrl}/picks`, {
+      ...pick,
+      adminOverride
+    });
   }
 
   getPicksForGame(gameId: number): Observable<{

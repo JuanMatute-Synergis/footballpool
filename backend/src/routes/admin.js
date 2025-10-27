@@ -17,6 +17,8 @@ router.delete('/users/:userId', adminController.deleteUser);
 // Picks management
 router.get('/picks', adminController.getAllPicksAdmin);
 router.put('/picks/:pickId', adminController.updatePick);
+router.post('/picks/submit', adminController.submitPickForUser);
+router.delete('/picks/:userId/:gameId', adminController.deletePickForUser);
 
 // Game management
 router.put('/games/:gameId/scores', adminController.updateGameScores);

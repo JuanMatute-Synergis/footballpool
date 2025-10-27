@@ -10,7 +10,7 @@ class ScoringService {
   async calculateWeeklyScores(week, season) {
     const runKey = `${season}-${week}`;
     const startTime = Date.now();
-    
+
     try {
       console.log(`[SCORING] Starting calculation for week ${week}, season ${season}`);
 
@@ -30,17 +30,17 @@ class ScoringService {
 
       const duration = Date.now() - startTime;
       this.lastScoringRuns.set(runKey, { timestamp: new Date(), duration, success: true });
-      
+
       console.log(`[SCORING] Completed calculation for week ${week}, season ${season} in ${duration}ms`);
-      
+
       // Perform post-calculation verification
       await this.verifyScoringAccuracy(week, season);
-      
+
     } catch (error) {
       const duration = Date.now() - startTime;
       this.scoringErrors.push({ week, season, error: error.message, timestamp: new Date() });
       this.lastScoringRuns.set(runKey, { timestamp: new Date(), duration, success: false, error: error.message });
-      
+
       console.error(`[SCORING] Error calculating weekly scores for week ${week}:`, error);
       throw error;
     }
@@ -155,7 +155,7 @@ class ScoringService {
       `, [week, season]);
 
       const isWeekComplete = allGames[0].total_games === allGames[0].completed_games;
-      
+
       if (!isWeekComplete) {
         console.log(`Week ${week} not complete - ${allGames[0].completed_games}/${allGames[0].total_games} games finished`);
         return; // Don't declare winners until all games are completed
@@ -245,7 +245,7 @@ class ScoringService {
   async autoCalculateScores() {
     try {
       console.log(`[SCORING] Starting auto-calculate scores check`);
-      
+
       // Get recent weeks that are complete and might need scoring updates
       const recentWeeks = await getAllQuery(`
         SELECT DISTINCT g.week, g.season,
@@ -298,9 +298,9 @@ class ScoringService {
   async verifyScoringAccuracy(week, season) {
     try {
       console.log(`[SCORING] Verifying accuracy for week ${week}, season ${season}`);
-      
+
       const discrepancies = [];
-      
+
       // Get all stored scores for this week
       const storedScores = await getAllQuery(`
         SELECT user_id, correct_picks, total_points 
@@ -311,7 +311,7 @@ class ScoringService {
       for (const storedScore of storedScores) {
         // Calculate what the score should be
         const actualCorrect = await this.calculateActualCorrectPicks(storedScore.user_id, week, season);
-        
+
         if (actualCorrect !== storedScore.correct_picks) {
           const discrepancy = {
             userId: storedScore.user_id,
@@ -353,7 +353,7 @@ class ScoringService {
       `, [userId, week, season]);
 
       let correctCount = 0;
-      
+
       for (const pick of picks) {
         if (pick.status === 'final' && pick.home_team_score !== null && pick.visitor_team_score !== null) {
           const winningTeamId = pick.home_team_score > pick.visitor_team_score
@@ -379,7 +379,7 @@ class ScoringService {
   async getScoringHealth() {
     try {
       const currentSeason = new Date().getFullYear();
-      
+
       // Get recent scoring runs
       const recentRuns = Array.from(this.lastScoringRuns.entries())
         .map(([key, data]) => ({ week: key, ...data }))

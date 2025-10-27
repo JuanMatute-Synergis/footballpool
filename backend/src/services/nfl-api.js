@@ -662,8 +662,8 @@ class NFLApiService {
           quarter_time_remaining = ?, updated_at = CURRENT_TIMESTAMP 
           WHERE id = ?`;
         params = [
-          typeof homeScore === 'number' ? homeScore : null, 
-          typeof visitorScore === 'number' ? visitorScore : null, 
+          typeof homeScore === 'number' ? homeScore : null,
+          typeof visitorScore === 'number' ? visitorScore : null,
           status, quarterData.live_status,
           quarterData.home_team_q1, quarterData.home_team_q2, quarterData.home_team_q3, quarterData.home_team_q4, quarterData.home_team_ot,
           quarterData.visitor_team_q1, quarterData.visitor_team_q2, quarterData.visitor_team_q3, quarterData.visitor_team_q4, quarterData.visitor_team_ot,
@@ -674,8 +674,8 @@ class NFLApiService {
         // Simple score update (backward compatibility)
         query = 'UPDATE games SET home_team_score = ?, visitor_team_score = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
         params = [
-          typeof homeScore === 'number' ? homeScore : null, 
-          typeof visitorScore === 'number' ? visitorScore : null, 
+          typeof homeScore === 'number' ? homeScore : null,
+          typeof visitorScore === 'number' ? visitorScore : null,
           status, gameId
         ];
       }

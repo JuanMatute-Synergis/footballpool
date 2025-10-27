@@ -87,7 +87,7 @@ const getUserPicks = async (req, res) => {
 const submitPick = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { gameId, selectedTeamId, mondayNightPrediction } = req.body;
+    const { gameId, selectedTeamId, mondayNightPrediction, adminOverride } = req.body;
 
     if (!gameId || !selectedTeamId) {
       return res.status(400).json({ message: 'Game ID and selected team ID are required' });
@@ -103,12 +103,17 @@ const submitPick = async (req, res) => {
       return res.status(404).json({ message: 'Game not found' });
     }
 
-    // Check if game has already started
+    // Check if game has already started (allow admin override)
     const gameDate = new Date(game.date);
     const now = new Date();
+    const isAdmin = req.user.is_admin;
 
     if (gameDate <= now && game.status !== 'scheduled') {
-      return res.status(400).json({ message: 'Cannot make picks for games that have already started' });
+      // Only allow if user is admin and explicitly using admin override
+      if (!isAdmin || !adminOverride) {
+        return res.status(400).json({ message: 'Cannot make picks for games that have already started' });
+      }
+      console.log(`[ADMIN] ${req.user.email} using admin override to modify pick for game ${gameId}`);
     }
 
     // Validate selected team is playing in this game
@@ -238,9 +243,87 @@ const getPicksHistory = async (req, res) => {
   }
 };
 
+const getSpecificUserPicks = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { week, season } = req.query;
+
+    let currentWeek = week;
+    let currentSeason = season;
+
+    if (!currentWeek || !currentSeason) {
+      const current = nflApiService.getCurrentWeek();
+      currentWeek = current.week;
+      currentSeason = current.season;
+    }
+
+    const picks = await getAllQuery(`
+      SELECT 
+        p.*,
+        g.date as game_date,
+        g.status as game_status,
+        g.home_team_score,
+        g.visitor_team_score,
+        g.home_team_id,
+        g.visitor_team_id,
+        ht.name as home_team_name,
+        ht.abbreviation as home_team_abbreviation,
+        vt.name as visitor_team_name,
+        vt.abbreviation as visitor_team_abbreviation,
+        st.name as selected_team_name,
+        st.abbreviation as selected_team_abbreviation
+      FROM picks p
+      JOIN games g ON p.game_id = g.id
+      JOIN teams ht ON g.home_team_id = ht.id
+      JOIN teams vt ON g.visitor_team_id = vt.id
+      LEFT JOIN teams st ON p.selected_team_id = st.id
+      WHERE p.user_id = ? AND p.week = ? AND p.season = ?
+      ORDER BY g.date ASC
+    `, [userId, currentWeek, currentSeason]);
+
+    res.json(picks.map(pick => {
+      // Calculate if pick is correct
+      let isCorrect = null;
+      if (pick.game_status === 'final' && pick.home_team_score !== null && pick.visitor_team_score !== null) {
+        const winningTeamId = pick.home_team_score > pick.visitor_team_score
+          ? pick.home_team_id
+          : pick.visitor_team_score > pick.home_team_score
+            ? pick.visitor_team_id
+            : null;
+
+        isCorrect = winningTeamId && pick.selected_team_id === winningTeamId;
+      }
+
+      return {
+        id: pick.id,
+        game_id: pick.game_id,
+        selected_team_id: pick.selected_team_id,
+        selected_team_name: pick.selected_team_name,
+        selected_team_abbreviation: pick.selected_team_abbreviation,
+        monday_night_prediction: pick.monday_night_prediction,
+        game_date: pick.game_date,
+        game_status: pick.game_status,
+        is_correct: isCorrect,
+        home_team_id: pick.home_team_id,
+        visitor_team_id: pick.visitor_team_id,
+        home_team_name: pick.home_team_name,
+        home_team_abbreviation: pick.home_team_abbreviation,
+        visitor_team_name: pick.visitor_team_name,
+        visitor_team_abbreviation: pick.visitor_team_abbreviation,
+        home_team_score: pick.home_team_score,
+        visitor_team_score: pick.visitor_team_score
+      };
+    }));
+  } catch (error) {
+    console.error('Error getting specific user picks:', error);
+    res.status(500).json({ message: 'Failed to get picks' });
+  }
+};
+
 module.exports = {
   getUserPicks,
   submitPick,
   getAllPicksForGame,
-  getPicksHistory
+  getPicksHistory,
+  getSpecificUserPicks
 };

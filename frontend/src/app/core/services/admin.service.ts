@@ -68,4 +68,28 @@ export class AdminService {
 
     return this.http.get<{ picks: any[] }>(`${environment.apiUrl}/admin/picks`, { params });
   }
+
+  getUserPicks(userId: number, week: number, season: number): Observable<any[]> {
+    return this.http.get<any[]>(`${environment.apiUrl}/picks/user/${userId}?week=${week}&season=${season}`);
+  }
+
+  updatePick(pickId: number, selectedTeamId: number, mondayNightPrediction?: number): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${environment.apiUrl}/admin/picks/${pickId}`, {
+      selectedTeamId,
+      mondayNightPrediction
+    });
+  }
+
+  submitPickForUser(userId: number, gameId: number, selectedTeamId: number, mondayNightPrediction?: number): Observable<any> {
+    return this.http.post(`${environment.apiUrl}/admin/picks/submit`, {
+      userId,
+      gameId,
+      selectedTeamId,
+      mondayNightPrediction
+    });
+  }
+
+  deletePickForUser(userId: number, gameId: number): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${environment.apiUrl}/admin/picks/${userId}/${gameId}`);
+  }
 }
