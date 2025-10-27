@@ -906,22 +906,28 @@ export class AdminComponent implements OnInit {
       const pick = picks.find(p => p.game_id === game.id);
       const isMonday = new Date(game.date).getDay() === 1;
       
+      // Handle both API response formats (camelCase from frontend, snake_case from backend)
+      const homeTeam = game.homeTeam || game.home_team;
+      const visitorTeam = game.visitorTeam || game.visitor_team;
+      const homeTeamId = game.homeTeam?.id || game.home_team_id;
+      const visitorTeamId = game.visitorTeam?.id || game.visitor_team_id;
+      
       return {
         gameId: game.id,
         userId: userId,
         pickId: pick?.id,
-        homeTeam: game.home_team?.city + ' ' + game.home_team?.name || 'Home Team',
-        visitorTeam: game.visitor_team?.city + ' ' + game.visitor_team?.name || 'Visitor Team',
-        homeTeamId: game.home_team_id,
-        visitorTeamId: game.visitor_team_id,
-        selectedTeamId: pick?.selected_team_id || game.home_team_id,
+        homeTeam: homeTeam ? `${homeTeam.city} ${homeTeam.name}` : 'Home Team',
+        visitorTeam: visitorTeam ? `${visitorTeam.city} ${visitorTeam.name}` : 'Visitor Team',
+        homeTeamId: homeTeamId,
+        visitorTeamId: visitorTeamId,
+        selectedTeamId: pick?.selected_team_id || homeTeamId,
         mondayNightPrediction: pick?.monday_night_prediction || null,
         gameDate: game.date,
         gameStatus: game.status,
         isMonday: isMonday,
         isCorrect: pick?.is_correct,
-        homeScore: game.home_team_score,
-        visitorScore: game.visitor_team_score
+        homeScore: game.homeTeam?.score || game.home_team_score,
+        visitorScore: game.visitorTeam?.score || game.visitor_team_score
       };
     });
   }
