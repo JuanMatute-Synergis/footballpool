@@ -356,10 +356,8 @@ class NFLApiService {
           await runQuery(
             `INSERT OR REPLACE INTO games 
              (id, week, season, home_team_id, visitor_team_id, date, status, live_status, home_team_score, visitor_team_score, 
-              home_team_q1, home_team_q2, home_team_q3, home_team_q4, home_team_ot,
-              visitor_team_q1, visitor_team_q2, visitor_team_q3, visitor_team_q4, visitor_team_ot,
               quarter_time_remaining, is_tiebreaker_game) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               game.id,
               game.week,
@@ -371,16 +369,6 @@ class NFLApiService {
               game.live_status,
               typeof game.home_team_score === 'number' ? game.home_team_score : null,
               typeof game.visitor_team_score === 'number' ? game.visitor_team_score : null,
-              game.home_team_q1,
-              game.home_team_q2,
-              game.home_team_q3,
-              game.home_team_q4,
-              game.home_team_ot,
-              game.visitor_team_q1,
-              game.visitor_team_q2,
-              game.visitor_team_q3,
-              game.visitor_team_q4,
-              game.visitor_team_ot,
               game.quarter_time_remaining,
               game.is_tiebreaker_game
             ]
@@ -685,19 +673,15 @@ class NFLApiService {
       let query, params;
 
       if (quarterData) {
-        // Update with full quarter information
+        // Update with quarter information (live_status and quarter_time_remaining only, no individual quarter scores)
         query = `UPDATE games SET 
           home_team_score = ?, visitor_team_score = ?, status = ?, live_status = ?,
-          home_team_q1 = ?, home_team_q2 = ?, home_team_q3 = ?, home_team_q4 = ?, home_team_ot = ?,
-          visitor_team_q1 = ?, visitor_team_q2 = ?, visitor_team_q3 = ?, visitor_team_q4 = ?, visitor_team_ot = ?,
           quarter_time_remaining = ?, updated_at = CURRENT_TIMESTAMP 
           WHERE id = ?`;
         params = [
           typeof homeScore === 'number' ? homeScore : null,
           typeof visitorScore === 'number' ? visitorScore : null,
           status, quarterData.live_status,
-          quarterData.home_team_q1, quarterData.home_team_q2, quarterData.home_team_q3, quarterData.home_team_q4, quarterData.home_team_ot,
-          quarterData.visitor_team_q1, quarterData.visitor_team_q2, quarterData.visitor_team_q3, quarterData.visitor_team_q4, quarterData.visitor_team_ot,
           quarterData.quarter_time_remaining,
           gameId
         ];
