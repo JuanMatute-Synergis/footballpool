@@ -913,8 +913,9 @@ class NFLApiService {
 
       if (err.response && err.response.status === 429) {
         // Persist a ratelimit signal for this schedule to avoid immediate retries
+        // Use shorter cooldown for live games (5 minutes instead of 1 hour)
         try {
-          await this.setCachedData(rateLimitKey, { rateLimited: true }, 1); // 1 hour cooldown
+          await this.setCachedData(rateLimitKey, { rateLimited: true }, 0.083); // ~5 minutes cooldown
         } catch (e) {
           console.warn('Failed to persist rate limit key:', e.message || e);
         }
