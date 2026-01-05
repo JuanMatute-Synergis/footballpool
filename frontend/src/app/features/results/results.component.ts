@@ -241,21 +241,18 @@ export class ResultsComponent implements OnInit, OnDestroy {
   loading = false;
   error = '';
 
-  currentSeason = this.getCurrentSeason();
-  selectedWeek = 1;
-  availableWeeks: number[] = [];
-
-  private getCurrentSeason(): number {
+  currentSeason = (() => {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth(); // 0-11
-    
     // If we're in January or early February, we're still in the previous year's NFL season
     if (month === 0 || (month === 1 && now.getDate() < 15)) {
       return year - 1;
     }
     return year;
-  }
+  })();
+  selectedWeek = 1;
+  availableWeeks: number[] = [];
 
   games: Game[] = [];
   leaderboard: LeaderboardEntry[] = [];
