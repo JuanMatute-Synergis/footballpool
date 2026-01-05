@@ -319,11 +319,11 @@ interface AdminStats {
                       </select>
                       
                       <input 
-                        *ngIf="pick.isMonday"
+                        *ngIf="pick.isTiebreaker"
                         type="number" 
                         [(ngModel)]="pick.mondayNightPrediction"
                         (change)="updatePickSelection(pick, userData.userId)"
-                        placeholder="MNF Total"
+                        placeholder="Tiebreaker Total"
                         class="w-20 px-2 py-1 border rounded-md text-sm"
                         [disabled]="updatingPick">
                       

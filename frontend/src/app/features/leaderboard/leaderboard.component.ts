@@ -89,7 +89,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                   <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Correct</th>
                   <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Bonus</th>
                   <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">Total</th>
-                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">MNF Diff</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6 bg-gray-50">TB Diff</th>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
