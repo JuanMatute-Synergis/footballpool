@@ -258,7 +258,7 @@ const getAllPicksAdmin = async (req, res) => {
         u.email,
         g.date as game_date,
         g.status as game_status,
-        g.is_monday_night,
+        g.is_tiebreaker_game,
         ht.name as home_team_name,
         ht.abbreviation as home_team_abbreviation,
         vt.name as visitor_team_name,
@@ -294,7 +294,7 @@ const getAllPicksAdmin = async (req, res) => {
         game: {
           date: pick.game_date,
           status: pick.game_status,
-          isMonday: pick.is_monday_night,
+          isTiebreaker: pick.is_tiebreaker_game,
           homeTeam: {
             name: pick.home_team_name,
             abbreviation: pick.home_team_abbreviation
