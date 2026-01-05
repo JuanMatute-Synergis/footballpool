@@ -333,9 +333,11 @@ export class ResultsComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = '';
 
+    console.log('loadData called with season:', this.currentSeason, 'week:', this.selectedWeek);
+
     // Load games and leaderboard in parallel
     const currentWeek$ = this.gameService.getWeekGames(this.currentSeason, this.selectedWeek);
-    const leaderboard$ = this.leaderboardService.getWeeklyLeaderboard(this.selectedWeek);
+    const leaderboard$ = this.leaderboardService.getWeeklyLeaderboard(this.selectedWeek, this.currentSeason);
 
     currentWeek$.pipe(
       switchMap((gameResponse: GamesResponse) => {
