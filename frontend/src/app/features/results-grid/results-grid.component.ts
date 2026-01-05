@@ -244,7 +244,7 @@ export class ResultsGridComponent implements OnInit {
   games: any[] = [];
   picksMap: Record<number, Record<number, any>> = {};
 
-  currentSeason = new Date().getFullYear();
+  currentSeason!: number;
   selectedWeek = 1;
   availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
@@ -260,6 +260,21 @@ export class ResultsGridComponent implements OnInit {
   }
 
   ngOnInit() {
+    // Calculate current season - NFL season spans two calendar years
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    
+    // If we're in January or early February, we're still in the previous year's NFL season
+    if (month === 0 || (month === 1 && now.getDate() < 15)) {
+      this.currentSeason = year - 1;
+    } else {
+      this.currentSeason = year;
+    }
+    
+    console.log('ResultsGrid: Current date:', now.toISOString());
+    console.log('ResultsGrid: Calculated NFL season:', this.currentSeason);
+
     (async () => {
       try {
         if (this.authService.isAuthenticated && !this.authService.currentUser) {
