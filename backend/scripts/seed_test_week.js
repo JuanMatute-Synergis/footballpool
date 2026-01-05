@@ -72,7 +72,7 @@ async function main() {
       const pickHome = Math.random() < 0.5;
       const selectedTeamId = pickHome ? g.home_team_id : g.visitor_team_id;
       let mnPrediction = null;
-      if (g.is_monday_night) {
+      if (g.is_tiebreaker_game) {
         mnPrediction = Math.floor(Math.random() * 41) + 10; // 10..50
       }
       await runQuery(

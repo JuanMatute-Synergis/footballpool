@@ -214,8 +214,8 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                         <span [class]="getGameStatusClass(game.status)">
                           {{ getGameStatusText(game.status) }}
                         </span>
-                        <div *ngIf="game.isMonday" class="mt-1">
-                          <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</span>
+                        <div *ngIf="game.isTiebreaker" class="mt-1">
+                          <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">TB</span>
                         </div>
                       </div>
                     </div>

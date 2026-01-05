@@ -134,7 +134,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                            (error)="handleImageError($event, pick.selectedTeam.abbreviation)"
                            loading="lazy">
                       <!-- Show MNF prediction for finished games too -->
-                      <div *ngIf="isMonday(pick) && pick.mondayNightPrediction" 
+                      <div *ngIf="isTiebreaker(pick) && pick.mondayNightPrediction" 
                            class="text-xs font-bold text-purple-600 bg-purple-50 px-1 py-0.5 rounded">
                         {{ pick.mondayNightPrediction }}
                       </div>
@@ -150,7 +150,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                            (error)="handleImageError($event, pick.selectedTeam.abbreviation)"
                            loading="lazy">
                       <!-- Show MNF prediction if applicable -->
-                      <div *ngIf="isMonday(pick) && pick.mondayNightPrediction" 
+                      <div *ngIf="isTiebreaker(pick) && pick.mondayNightPrediction" 
                            class="text-xs font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded">
                         {{ pick.mondayNightPrediction }}
                       </div>
@@ -397,11 +397,11 @@ export class ResultsGridComponent implements OnInit {
   hasUserTiebreaker(userId: number): boolean {
     if (!this.picksMap[userId]) return false;
 
-    // Find Monday Night Football pick for this user
+    // Find Tiebreaker Game pick for this user
     const userPicks = this.picksMap[userId];
     for (const gameId in userPicks) {
       const pick = userPicks[gameId];
-      if (this.isMonday(pick) && pick.mondayNightPrediction) {
+      if (this.isTiebreaker(pick) && pick.mondayNightPrediction) {
         return true;
       }
     }
@@ -440,9 +440,9 @@ export class ResultsGridComponent implements OnInit {
     return now >= gameStartTime;
   }
 
-  isMonday(pick: any): boolean {
-    // Check if this pick is for a Monday Night Football game
-    return pick.game?.isMonday === 1 || pick.game?.isMonday === true;
+  isTiebreaker(pick: any): boolean {
+    // Check if this pick is for a tiebreaker game (last game of the week)
+    return pick.game?.isTiebreaker === 1 || pick.game?.isTiebreaker === true;
   }
 
   formatLiveStatus(liveStatus: string): string {

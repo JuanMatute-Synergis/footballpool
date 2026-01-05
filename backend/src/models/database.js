@@ -66,7 +66,7 @@ function initializeDatabase() {
         home_team_score INTEGER,
         visitor_team_score INTEGER,
         quarter_time_remaining TEXT,
-        is_monday_night BOOLEAN DEFAULT 0,
+        is_tiebreaker_game BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (home_team_id) REFERENCES teams(id),

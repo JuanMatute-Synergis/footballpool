@@ -301,9 +301,19 @@ class NFLApiService {
                 visitor_team_q4: game.visitor_team_q4 || null,
                 visitor_team_ot: game.visitor_team_ot || null,
                 quarter_time_remaining: quarterInfo.timeRemaining,
-                is_monday_night: this.isMondayNightGame(game.date)
+                is_tiebreaker_game: 0 // Will be determined after all games are fetched
               };
             });
+
+            // Determine which game should be the tiebreaker (last game of the week)
+            const tiebreakerGame = this.determineTiebreakerGame(games);
+            if (tiebreakerGame) {
+              const tiebreakerIndex = games.findIndex(g => g.id === tiebreakerGame.id);
+              if (tiebreakerIndex !== -1) {
+                games[tiebreakerIndex].is_tiebreaker_game = 1;
+                console.log(`🎯 Tiebreaker game set: ${tiebreakerGame.id} on ${tiebreakerGame.date}`);
+              }
+            }
 
             await this.setCachedData(cacheKey, games, 24); // Cache for 24 hours
             console.log(`✅ Successfully fetched and cached ${games.length} real games from API`);
@@ -348,7 +358,7 @@ class NFLApiService {
              (id, week, season, home_team_id, visitor_team_id, date, status, live_status, home_team_score, visitor_team_score, 
               home_team_q1, home_team_q2, home_team_q3, home_team_q4, home_team_ot,
               visitor_team_q1, visitor_team_q2, visitor_team_q3, visitor_team_q4, visitor_team_ot,
-              quarter_time_remaining, is_monday_night) 
+              quarter_time_remaining, is_tiebreaker_game) 
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               game.id,
@@ -372,7 +382,7 @@ class NFLApiService {
               game.visitor_team_q4,
               game.visitor_team_ot,
               game.quarter_time_remaining,
-              game.is_monday_night
+              game.is_tiebreaker_game
             ]
           );
         }
@@ -484,6 +494,18 @@ class NFLApiService {
     return (day === 1 && hour >= 19) || isLateGame;
   }
 
+  // Determine which game should be the tiebreaker (last game of the week)
+  // This is typically Monday Night Football, or Sunday Night Football if no Monday game
+  determineTiebreakerGame(games) {
+    if (!games || games.length === 0) return null;
+
+    // Sort games by date (latest first)
+    const sortedGames = [...games].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // Return the last game (latest date)
+    return sortedGames[0];
+  }
+
   // Helper method to parse quarter time remaining from status
   parseQuarterTimeInfo(status) {
     if (!status) return { quarter: null, timeRemaining: null, fullStatus: null };
@@ -571,10 +593,19 @@ class NFLApiService {
         visitor_team_id: matchup.visitor.id,
         date: gameDate.toISOString(),
         status: 'scheduled',
-        is_monday_night: timeSlot.day === 1 // Monday games
+        is_tiebreaker_game: 0 // Will be set after all games are generated
       };
 
       games.push(game);
+    }
+
+    // Determine tiebreaker game for mock data
+    const tiebreakerGame = this.determineTiebreakerGame(games);
+    if (tiebreakerGame) {
+      const tiebreakerIndex = games.findIndex(g => g.id === tiebreakerGame.id);
+      if (tiebreakerIndex !== -1) {
+        games[tiebreakerIndex].is_tiebreaker_game = 1;
+      }
     }
 
     return games;
@@ -726,8 +757,18 @@ class NFLApiService {
         status: this.normalizeGameStatus(g.status),
         home_team_score: typeof g.home_team_score === 'number' ? g.home_team_score : null,
         visitor_team_score: typeof g.visitor_team_score === 'number' ? g.visitor_team_score : null,
-        is_monday_night: this.isMondayNightGame(g.date)
+        is_tiebreaker_game: 0 // Will be determined after mapping all games
       })) : [];
+
+      // Determine tiebreaker game
+      const tiebreakerGame = this.determineTiebreakerGame(remoteGames);
+      if (tiebreakerGame) {
+        const tiebreakerIndex = remoteGames.findIndex(g => g.id === tiebreakerGame.id);
+        if (tiebreakerIndex !== -1) {
+          remoteGames[tiebreakerIndex].is_tiebreaker_game = 1;
+          console.log(`🎯 Tiebreaker game set for sync: ${tiebreakerGame.id} on ${tiebreakerGame.date}`);
+        }
+      }
 
       // Get local games for the week/season
       const localGames = await getAllQuery('SELECT * FROM games WHERE week = ? AND season = ?', [week, season]);
@@ -757,8 +798,8 @@ class NFLApiService {
         } else {
           // Insert new game
           await runQuery(
-            `INSERT INTO games (id, week, season, home_team_id, visitor_team_id, date, status, home_team_score, visitor_team_score, is_monday_night) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [rg.id, rg.week, rg.season, rg.home_team_id, rg.visitor_team_id, rg.date, rg.status, rg.home_team_score, rg.visitor_team_score, rg.is_monday_night]
+            `INSERT INTO games (id, week, season, home_team_id, visitor_team_id, date, status, home_team_score, visitor_team_score, is_tiebreaker_game) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [rg.id, rg.week, rg.season, rg.home_team_id, rg.visitor_team_id, rg.date, rg.status, rg.home_team_score, rg.visitor_team_score, rg.is_tiebreaker_game]
           );
           console.log(`Inserted new game ${rg.id}`);
         }
@@ -860,9 +901,18 @@ class NFLApiService {
           visitor_team_q4: game.visitor_team_q4 || null,
           visitor_team_ot: game.visitor_team_ot || null,
           quarter_time_remaining: quarterInfo.timeRemaining,
-          is_monday_night: this.isMondayNightGame(game.date)
+          is_tiebreaker_game: 0 // Will be determined after mapping
         };
       }) : [];
+
+      // Determine tiebreaker game for live updates
+      const tiebreakerGame = this.determineTiebreakerGame(remoteGames);
+      if (tiebreakerGame) {
+        const tiebreakerIndex = remoteGames.findIndex(g => g.id === tiebreakerGame.id);
+        if (tiebreakerIndex !== -1) {
+          remoteGames[tiebreakerIndex].is_tiebreaker_game = 1;
+        }
+      }
 
       // Short-persist the result to the DB cache to help survive rate limits (10 seconds)
       try {

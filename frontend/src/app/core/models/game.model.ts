@@ -22,7 +22,7 @@ export interface Game {
   season: number;
   date: string;
   status: 'scheduled' | 'in_progress' | 'final' | 'live';
-  isMonday: boolean;
+  isTiebreaker: boolean;
   quarterTimeRemaining?: string | null;
   liveStatus?: string | null;
   homeTeam: Team & {

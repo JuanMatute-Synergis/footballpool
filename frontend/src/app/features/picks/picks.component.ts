@@ -53,7 +53,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
               <ul class="mt-2 text-sm text-blue-800 space-y-1">
                 <li>• Select the team you think will win each game</li>
                 <li>• Picks are locked once games start</li>
-                <li>• For Monday Night games, predict the total combined score</li>
+                <li>• For Tiebreaker games, predict the total combined score</li>
                 <li>• Get all picks right for +3 bonus points!</li>
                 <li>• Starting Tuesday, you can make picks for next week's games!</li>
               </ul>
@@ -73,9 +73,9 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                         🔒 Locked
                       </span>
                     </div>
-                    <div *ngIf="game.isMonday" class="mt-1">
+                    <div *ngIf="game.isTiebreaker" class="mt-1">
                       <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                        Monday Night
+                        Tiebreaker
                       </span>
                     </div>
                   </div>
@@ -143,8 +143,8 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
                     </label>
                   </div>
 
-                  <!-- Monday Night Prediction -->
-                  <div *ngIf="game.isMonday" class="mt-4 pt-4 border-t border-gray-200">
+                  <!-- Tiebreaker Prediction -->
+                  <div *ngIf="game.isTiebreaker" class="mt-4 pt-4 border-t border-gray-200">
                     <label class="block text-sm font-medium text-gray-700 mb-2"
                            [class.opacity-50]="isGameLocked(game)">
                       Total Score Prediction (Tie-breaker)
@@ -271,7 +271,7 @@ export class PicksComponent implements OnInit {
 
     this.games.forEach(game => {
       controls[`pick_${game.id}`] = [''];
-      if (game.isMonday) {
+      if (game.isTiebreaker) {
         controls[`monday_${game.id}`] = [''];
       }
     });

@@ -121,7 +121,7 @@ async function createWeek0Schedule() {
     
     await runQuery(`
       INSERT OR REPLACE INTO games 
-      (id, week, season, date, home_team_id, visitor_team_id, status, is_monday_night, created_at, updated_at)
+      (id, week, season, date, home_team_id, visitor_team_id, status, is_tiebreaker_game, created_at, updated_at)
       VALUES (?, 0, 2025, ?, ?, ?, 'scheduled', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `, [gameId, game.date, game.home.id, game.visitor.id, game.isMonday ? 1 : 0]);
     
@@ -154,7 +154,7 @@ async function generatePicks(users, gameIds) {
       
       // Monday night prediction (if applicable)
       let mondayNightPrediction = null;
-      if (game.is_monday_night) {
+      if (game.is_tiebreaker_game) {
         // Vary predictions around realistic total (35-55 points)
         const baseTotal = 45;
         const variance = 10;

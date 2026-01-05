@@ -69,7 +69,7 @@ class ScoringService {
           g.home_team_score,
           g.visitor_team_score,
           g.status,
-          g.is_monday_night
+          g.is_tiebreaker_game
         FROM picks p
         JOIN games g ON p.game_id = g.id
         WHERE p.user_id = ? AND p.week = ? AND p.season = ?
@@ -102,7 +102,7 @@ class ScoringService {
         }
 
         // Handle Monday night game (process regardless of game completion status)
-        if (pick.is_monday_night) {
+        if (pick.is_tiebreaker_game) {
           if (pick.monday_night_prediction !== null && pick.home_team_score !== null && pick.visitor_team_score !== null) {
             mondayNightPrediction = pick.monday_night_prediction;
             mondayNightActual = pick.home_team_score + pick.visitor_team_score;

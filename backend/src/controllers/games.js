@@ -67,7 +67,7 @@ const getCurrentWeekGames = async (req, res) => {
         date: game.date,
         status: game.status,
         liveStatus: game.live_status,
-        isMonday: game.is_monday_night,
+        isTiebreaker: game.is_tiebreaker_game,
         quarterTimeRemaining: game.quarter_time_remaining,
         homeTeam: {
           id: game.home_team_id,
@@ -165,7 +165,7 @@ const getWeekGames = async (req, res) => {
         date: game.date,
         status: game.status,
         liveStatus: game.live_status,
-        isMonday: game.is_monday_night,
+        isTiebreaker: game.is_tiebreaker_game,
         quarterTimeRemaining: game.quarter_time_remaining,
         homeTeam: {
           id: game.home_team_id,
@@ -308,7 +308,7 @@ const getLiveCurrentWeekGames = async (req, res) => {
           id: g.id,
           date: g.date,
           status: g.status,
-          isMonday: g.is_monday_night,
+          isTiebreaker: g.is_tiebreaker_game,
           homeTeam: { id: g.home_team_id, name: g.home_team_name, abbreviation: g.home_team_abbreviation, logo: g.home_team_logo, score: g.home_team_score },
           visitorTeam: { id: g.visitor_team_id, name: g.visitor_team_name, abbreviation: g.visitor_team_abbreviation, logo: g.visitor_team_logo, score: g.visitor_team_score }
         }))
@@ -326,7 +326,7 @@ const getLiveCurrentWeekGames = async (req, res) => {
         id: g.id,
         date: g.date,
         status: g.status,
-        isMonday: g.is_monday_night,
+        isTiebreaker: g.is_tiebreaker_game,
         homeTeam: { id: ht.id, name: ht.name, abbreviation: ht.abbreviation, logo: ht.logo_url, score: g.home_team_score },
         visitorTeam: { id: vt.id, name: vt.name, abbreviation: vt.abbreviation, logo: vt.logo_url, score: g.visitor_team_score }
       };
@@ -440,7 +440,7 @@ const getCurrentWeekGamesForDisplay = async (req, res) => {
         date: game.date,
         status: game.status,
         liveStatus: game.live_status,
-        isMonday: game.is_monday_night,
+        isTiebreaker: game.is_tiebreaker_game,
         quarterTimeRemaining: game.quarter_time_remaining,
         homeTeam: {
           id: game.home_team_id,

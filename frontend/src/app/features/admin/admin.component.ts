@@ -244,7 +244,7 @@ interface AdminStats {
                     </div>
                     <div class="text-sm text-gray-600">
                       {{ formatGameTime(game.date) }}
-                      <span *ngIf="game.isMonday" class="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</span>
+                      <span *ngIf="game.isTiebreaker" class="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">TB</span>
                     </div>
                   </div>
                   
@@ -904,7 +904,7 @@ export class AdminComponent implements OnInit {
   private mapPicksWithGames(picks: any[], games: any[], userId: number): any[] {
     return games.map(game => {
       const pick = picks.find(p => p.game_id === game.id);
-      const isMonday = new Date(game.date).getDay() === 1;
+      const isTiebreakerGame = game.isTiebreaker === 1 || game.isTiebreaker === true;
 
       // Handle both API response formats (camelCase from frontend, snake_case from backend)
       const homeTeam = game.homeTeam || game.home_team;
@@ -924,7 +924,7 @@ export class AdminComponent implements OnInit {
         mondayNightPrediction: pick?.monday_night_prediction || null,
         gameDate: game.date,
         gameStatus: game.status,
-        isMonday: isMonday,
+        isTiebreaker: isTiebreakerGame,
         isCorrect: pick?.is_correct,
         homeScore: game.homeTeam?.score || game.home_team_score,
         visitorScore: game.visitorTeam?.score || game.visitor_team_score

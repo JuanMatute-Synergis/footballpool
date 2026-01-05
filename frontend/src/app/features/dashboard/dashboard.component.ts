@@ -161,7 +161,7 @@ import { environment } from '../../../environments/environment';
                              loading="lazy">
                         <span class="font-medium">{{ game.homeTeam.name || 'Unknown' }}</span>
                       </div>
-                      <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
+                      <div *ngIf="game.isTiebreaker" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">TB</div>
                     </div>
                     <div class="flex items-center space-x-2">
                       <span class="text-sm text-gray-600">{{ formatGameTime(game.date) }}</span>
@@ -194,7 +194,7 @@ import { environment } from '../../../environments/environment';
                           <span class="font-medium">{{ game.homeTeam.name || 'Unknown' }}</span>
                           <span class="text-sm font-mono">{{ game.homeTeam.score || 0 }}</span>
                         </div>
-                        <div *ngIf="game.isMonday" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">MNF</div>
+                        <div *ngIf="game.isTiebreaker" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">TB</div>
                       </div>
                       <div class="flex items-center space-x-2">
                         <span class="text-sm text-gray-600">Final</span>
