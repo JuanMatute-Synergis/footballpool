@@ -312,7 +312,7 @@ export class DashboardComponent implements OnInit {
   error = '';
 
   currentWeek = 1;
-  currentSeason = new Date().getFullYear();
+  currentSeason = 2025;
 
   // Stats
   currentWeekPicks = 0;

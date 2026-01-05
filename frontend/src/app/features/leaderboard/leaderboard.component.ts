@@ -243,7 +243,7 @@ export class LeaderboardComponent implements OnInit {
   error = '';
 
   currentWeek = 1;
-  currentSeason = new Date().getFullYear();
+  currentSeason = 2025;
   selectedWeek = 1;
   availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
@@ -254,11 +254,23 @@ export class LeaderboardComponent implements OnInit {
   currentUserId = 1; // This should come from AuthService
 
   ngOnInit() {
+    // Calculate current season (NFL season spans calendar years)
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    // January and early February games are part of previous year's season
+    if (month === 0 || (month === 1 && now.getDate() < 15)) {
+      this.currentSeason = year - 1;
+    } else {
+      this.currentSeason = year;
+    }
+
     // Get current week first, then load data
     this.gameService.getCurrentWeekGames().subscribe({
       next: (response) => {
         // Set current week and selected week to the actual current week
         this.currentWeek = response.week > 0 ? response.week : 1;
+        this.currentSeason = response.season;
         this.selectedWeek = this.currentWeek;
         
         // Load all data on initialization

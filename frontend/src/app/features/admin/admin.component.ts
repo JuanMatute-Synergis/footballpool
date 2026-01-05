@@ -635,7 +635,12 @@ export class AdminComponent implements OnInit {
   // Games
   loadGames() {
     this.loading = true;
-    const currentSeason = new Date().getFullYear();
+    // Calculate current season (NFL season spans calendar years)
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    // January and early February games are part of previous year's season
+    const currentSeason = (month === 0 || (month === 1 && now.getDate() < 15)) ? year - 1 : year;
 
     this.gameService.getWeekGames(currentSeason, this.selectedWeek).subscribe({
       next: (response: GamesResponse) => {

@@ -214,7 +214,7 @@ export class PicksComponent implements OnInit {
   games: Game[] = [];
   picks: Pick[] = [];
   currentWeek = 1;
-  currentSeason = new Date().getFullYear();
+  currentSeason = 2025;
 
   picksForm: FormGroup = this.fb.group({});
 
