@@ -241,16 +241,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
   loading = false;
   error = '';
 
-  currentSeason = (() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-11
-    // If we're in January or early February, we're still in the previous year's NFL season
-    if (month === 0 || (month === 1 && now.getDate() < 15)) {
-      return year - 1;
-    }
-    return year;
-  })();
+  currentSeason!: number;
   selectedWeek = 1;
   availableWeeks: number[] = [];
 
@@ -266,6 +257,21 @@ export class ResultsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    // Calculate current season - NFL season spans two calendar years
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    
+    // If we're in January or early February, we're still in the previous year's NFL season
+    if (month === 0 || (month === 1 && now.getDate() < 15)) {
+      this.currentSeason = year - 1;
+    } else {
+      this.currentSeason = year;
+    }
+    
+    console.log('Current date:', now.toISOString());
+    console.log('Calculated NFL season:', this.currentSeason);
+    
     // Load available weeks first
     this.loadAvailableWeeks().then(() => {
       this.loadData();
