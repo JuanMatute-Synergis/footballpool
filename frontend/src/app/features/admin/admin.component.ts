@@ -468,7 +468,7 @@ export class AdminComponent implements OnInit {
   userPicksData: any[] = [];
   loadingPicks = false;
   updatingPick = false;
-  weekOptions = Array.from({length: 18}, (_, i) => i + 1);
+  weekOptions = Array.from({ length: 18 }, (_, i) => i + 1);
 
   // Settings
   currentWeekSetting = 1;
@@ -480,7 +480,7 @@ export class AdminComponent implements OnInit {
 
   ngOnInit() {
     this.loadData();
-    
+
     // Initialize current week based on today's date
     const now = new Date();
     const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
@@ -844,10 +844,10 @@ export class AdminComponent implements OnInit {
     this.gameService.getWeekGames(this.picksSeason, this.picksWeek).subscribe({
       next: (response: any) => {
         const games = response.games || [];
-        
+
         // If all users selected, load picks for all users
         if (this.picksUserId === 0) {
-          const pickRequests = this.users.map(user => 
+          const pickRequests = this.users.map(user =>
             this.adminService.getUserPicks(user.id, this.picksWeek, this.picksSeason).toPromise()
               .then((picks: any) => ({
                 userId: user.id,
@@ -905,13 +905,13 @@ export class AdminComponent implements OnInit {
     return games.map(game => {
       const pick = picks.find(p => p.game_id === game.id);
       const isMonday = new Date(game.date).getDay() === 1;
-      
+
       // Handle both API response formats (camelCase from frontend, snake_case from backend)
       const homeTeam = game.homeTeam || game.home_team;
       const visitorTeam = game.visitorTeam || game.visitor_team;
       const homeTeamId = game.homeTeam?.id || game.home_team_id;
       const visitorTeamId = game.visitorTeam?.id || game.visitor_team_id;
-      
+
       return {
         gameId: game.id,
         userId: userId,

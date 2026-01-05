@@ -2,17 +2,17 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { 
-  Pick, 
-  PicksResponse, 
-  SubmitPickRequest 
+import {
+  Pick,
+  PicksResponse,
+  SubmitPickRequest
 } from '../models/pick.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class PickService {
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   getUserPicks(week?: number, season?: number): Observable<PicksResponse> {
     const params: any = {};

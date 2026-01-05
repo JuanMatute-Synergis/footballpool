@@ -391,7 +391,7 @@ const submitPickForUser = async (req, res) => {
 
     console.log(`[ADMIN] ${req.user.email} submitted/updated pick for user ${user.email} - Week ${game.week}, Game ${gameId}, Team ${selectedTeamId}`);
 
-    res.json({ 
+    res.json({
       message: 'Pick submitted successfully',
       pick: {
         userId,
@@ -430,7 +430,7 @@ const deletePickForUser = async (req, res) => {
 
     console.log(`[ADMIN] ${req.user.email} deleted pick for user ${pick.email} - Week ${pick.week}, Game ${gameId}`);
 
-    res.json({ 
+    res.json({
       message: 'Pick deleted successfully',
       deletedPick: {
         userId: parseInt(userId),
