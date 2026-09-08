@@ -8,17 +8,18 @@ import { Game } from '../../core/models/game.model';
 import { Pick } from '../../core/models/pick.model';
 import { environment } from '../../../environments/environment';
 import { NavigationComponent } from '../../shared/components/navigation.component';
+import { WeekLabelPipe } from '../../shared/pipes/week-label.pipe';
 
 @Component({
   selector: 'app-picks',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, NavigationComponent],
+  imports: [CommonModule, ReactiveFormsModule, NavigationComponent, WeekLabelPipe],
   template: `
     <div class="min-h-screen bg-gray-50">
       <!-- Navigation -->
       <app-navigation 
         title="My Picks" 
-        [subtitle]="'Week ' + currentWeek + ', ' + currentSeason">
+        [subtitle]="(currentWeek | weekLabel) + ', ' + currentSeason">
       </app-navigation>
 
       <!-- Content -->

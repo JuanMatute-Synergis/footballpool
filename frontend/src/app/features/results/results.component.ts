@@ -10,14 +10,15 @@ import { Game, GamesResponse } from '../../core/models/game.model';
 import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.model';
 import { environment } from '../../../environments/environment';
 import { NavigationComponent } from '../../shared/components/navigation.component';
+import { WeekLabelPipe } from '../../shared/pipes/week-label.pipe';
 
 @Component({
   selector: 'app-results',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavigationComponent],
+  imports: [CommonModule, FormsModule, NavigationComponent, WeekLabelPipe],
   template: `
     <div class="min-h-screen bg-gray-50">
-      <app-navigation title="Game Results" [subtitle]="'Week ' + selectedWeek"></app-navigation>
+      <app-navigation title="Game Results" [subtitle]="selectedWeek | weekLabel"></app-navigation>
 
       <!-- Content -->
       <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -28,7 +29,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
             <div class="flex items-center space-x-4">
               <label class="text-sm font-medium text-gray-700">Week:</label>
               <select [(ngModel)]="selectedWeek" (ngModelChange)="loadData()" class="input-field">
-                <option *ngFor="let w of availableWeeks" [value]="w">Week {{ w }}</option>
+                <option *ngFor="let w of availableWeeks" [value]="w">{{ w | weekLabel }}</option>
               </select>
               <!-- Debug info -->
               <span *ngIf="isAdmin" class="text-xs text-green-600 font-bold">ADMIN MODE</span>
@@ -65,7 +66,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
             <!-- Weekly Winner -->
             <div *ngIf="weeklyWinner" class="card">
               <div class="p-6 bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-400">
-                <h2 class="text-xl font-bold text-yellow-800 mb-2">🏆 Week {{ selectedWeek }} Winner</h2>
+                <h2 class="text-xl font-bold text-yellow-800 mb-2">🏆 {{ selectedWeek | weekLabel }} Winner</h2>
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-lg font-semibold text-yellow-900">{{ weeklyWinner.firstName }} {{ weeklyWinner.lastName }}</p>
@@ -295,8 +296,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
       this.http.get<any>(`${this.baseUrl}/api/leaderboard/weekly-leaderboard?season=${this.currentSeason}&week=1`)
         .subscribe({
           next: () => {
-            // Generate weeks 1-18, but filter out Week 0 if it somehow gets in
-            this.availableWeeks = Array.from({ length: 18 }, (_, i) => i + 1).filter(week => week > 0);
+            // Generate weeks 1-22 (regular season + playoffs), filtering out Week 0 if it somehow gets in
+            this.availableWeeks = Array.from({ length: 22 }, (_, i) => i + 1).filter(week => week > 0);
 
             // Set current week as selected if not already set
             if (this.selectedWeek === 1) {
@@ -316,8 +317,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
             }
           },
           error: () => {
-            // Fallback to weeks 1-18, filtering out Week 0
-            this.availableWeeks = Array.from({ length: 18 }, (_, i) => i + 1).filter(week => week > 0);
+            // Fallback to weeks 1-22 (regular season + playoffs), filtering out Week 0
+            this.availableWeeks = Array.from({ length: 22 }, (_, i) => i + 1).filter(week => week > 0);
             resolve();
           }
         });

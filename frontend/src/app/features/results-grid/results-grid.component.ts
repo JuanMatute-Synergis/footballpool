@@ -8,11 +8,12 @@ import { GameService } from '../../core/services/game.service';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { NavigationComponent } from '../../shared/components/navigation.component';
+import { WeekLabelPipe } from '../../shared/pipes/week-label.pipe';
 
 @Component({
   selector: 'app-results-grid',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavigationComponent],
+  imports: [CommonModule, FormsModule, NavigationComponent, WeekLabelPipe],
   template: `
     <div class="h-screen bg-gray-50 flex flex-col">
       <app-navigation title="Score Grid" subtitle="Users vs Games — green = correct, red = incorrect"></app-navigation>
@@ -22,7 +23,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
         <div class="flex items-center space-x-4">
           <label class="text-sm font-medium text-gray-700">Week:</label>
           <select [(ngModel)]="selectedWeek" (ngModelChange)="loadGrid()" class="input-field">
-            <option *ngFor="let w of availableWeeks" [value]="w">Week {{ w }}</option>
+            <option *ngFor="let w of availableWeeks" [value]="w">{{ w | weekLabel }}</option>
           </select>
           <div class="text-sm text-gray-500">Season: {{ currentSeason }}</div>
         </div>
@@ -246,7 +247,7 @@ export class ResultsGridComponent implements OnInit {
 
   currentSeason!: number;
   selectedWeek = 1;
-  availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  availableWeeks = Array.from({ length: 22 }, (_, i) => i + 1);
 
   getTeamLogo(abbreviation: string): string {
     // Simply return the server-side logo endpoint

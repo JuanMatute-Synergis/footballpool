@@ -8,6 +8,7 @@ import { User } from '../../core/models/user.model';
 import { Game, GamesResponse } from '../../core/models/game.model';
 import { environment } from '../../../environments/environment';
 import { NavigationComponent } from '../../shared/components/navigation.component';
+import { WeekLabelPipe } from '../../shared/pipes/week-label.pipe';
 
 interface AdminStats {
   totalUsers: number;
@@ -19,7 +20,7 @@ interface AdminStats {
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavigationComponent],
+  imports: [CommonModule, FormsModule, NavigationComponent, WeekLabelPipe],
   template: `
     <div class="min-h-screen bg-gray-50">
       <app-navigation title="Admin Dashboard" subtitle="Manage users, games, and system settings"></app-navigation>
@@ -211,7 +212,7 @@ interface AdminStats {
               <h2 class="text-lg font-semibold">Game Management</h2>
               <div class="flex space-x-2">
                 <select [(ngModel)]="selectedWeek" (ngModelChange)="loadGames()" class="input-field text-sm">
-                  <option *ngFor="let w of availableWeeks" [value]="w">Week {{ w }}</option>
+                  <option *ngFor="let w of availableWeeks" [value]="w">{{ w | weekLabel }}</option>
                 </select>
                 <button (click)="refreshGames()" class="btn-secondary">Refresh Games</button>
               </div>
@@ -274,7 +275,7 @@ interface AdminStats {
               <h2 class="text-lg font-semibold">Manage User Picks</h2>
               <div class="flex space-x-2">
                 <select [(ngModel)]="picksWeek" (change)="loadPicksForWeek()" class="px-3 py-2 border rounded-md">
-                  <option *ngFor="let w of weekOptions" [value]="w">Week {{ w }}</option>
+                  <option *ngFor="let w of weekOptions" [value]="w">{{ w | weekLabel }}</option>
                 </select>
                 <select [(ngModel)]="picksUserId" (change)="loadPicksForWeek()" class="px-3 py-2 border rounded-md">
                   <option [value]="0">All Users</option>
@@ -293,7 +294,7 @@ interface AdminStats {
             <div *ngIf="!loadingPicks && userPicksData.length > 0" class="space-y-6">
               <div *ngFor="let userData of userPicksData" class="card p-6">
                 <h3 class="font-semibold text-lg mb-4">
-                  {{ userData.userName }} - Week {{ picksWeek }}
+                  {{ userData.userName }} - {{ picksWeek | weekLabel }}
                   <span class="text-sm font-normal text-gray-600">({{ userData.picks.length }} picks)</span>
                 </h3>
                 
@@ -360,7 +361,7 @@ interface AdminStats {
                 <h3 class="font-semibold mb-3">Current Week</h3>
                 <div class="flex items-center space-x-2">
                   <select [(ngModel)]="currentWeekSetting" class="input-field">
-                    <option *ngFor="let w of availableWeeks" [value]="w">Week {{ w }}</option>
+                    <option *ngFor="let w of availableWeeks" [value]="w">{{ w | weekLabel }}</option>
                   </select>
                   <button (click)="updateCurrentWeek()" class="btn-primary">Update</button>
                 </div>
@@ -459,7 +460,7 @@ export class AdminComponent implements OnInit {
   // Games
   games: Game[] = [];
   selectedWeek = 1;
-  availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  availableWeeks = Array.from({ length: 22 }, (_, i) => i + 1);
 
   // Picks Management
   picksWeek = 1;
@@ -468,7 +469,7 @@ export class AdminComponent implements OnInit {
   userPicksData: any[] = [];
   loadingPicks = false;
   updatingPick = false;
-  weekOptions = Array.from({ length: 18 }, (_, i) => i + 1);
+  weekOptions = Array.from({ length: 22 }, (_, i) => i + 1);
 
   // Settings
   currentWeekSetting = 1;
@@ -486,7 +487,7 @@ export class AdminComponent implements OnInit {
     const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
     if (now >= seasonStart) {
       const weeksPassed = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      this.picksWeek = Math.min(Math.max(weeksPassed + 1, 1), 18);
+      this.picksWeek = Math.min(Math.max(weeksPassed + 1, 1), 22);
     }
   }
 

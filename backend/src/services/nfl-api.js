@@ -1,6 +1,9 @@
 const axios = require('axios');
 const { runQuery, getQuery, getAllQuery } = require('../models/database');
 
+const REGULAR_SEASON_WEEKS = 18;
+const TOTAL_WEEKS = 22;
+
 class NFLApiService {
   constructor() {
     this.ballDontLieBaseUrl = 'https://api.balldontlie.io/nfl/v1';
@@ -146,6 +149,26 @@ class NFLApiService {
     }
   }
 
+  // Determine which playoff round (19-22) is current during Jan/Feb, anchored to an
+  // approximate Wild Card weekend (first Saturday on/after Jan 10), advancing one round
+  // per week with an extra bye week before the Super Bowl.
+  getPlayoffWeek(now) {
+    const year = now.getFullYear();
+    const jan10 = new Date(year, 0, 10);
+    const daysToSaturday = (6 - jan10.getDay() + 7) % 7;
+    const wildCardStart = new Date(year, 0, 10 + daysToSaturday);
+
+    if (now < wildCardStart) {
+      return REGULAR_SEASON_WEEKS;
+    }
+
+    const daysSinceWildCard = Math.floor((now - wildCardStart) / (24 * 60 * 60 * 1000));
+    if (daysSinceWildCard < 7) return 19; // Wild Card
+    if (daysSinceWildCard < 14) return 20; // Divisional
+    if (daysSinceWildCard < 21) return 21; // Conference Championship
+    return TOTAL_WEEKS; // Super Bowl (after the bye week)
+  }
+
   // Get current NFL week (allows picks for next week starting Wednesday)
   getCurrentWeek() {
     const now = new Date();
@@ -162,7 +185,7 @@ class NFLApiService {
       season = currentYear;
       const seasonStart = new Date(currentYear, 8, 5); // September 5th (typical season start)
       const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
-      week = Math.max(1, Math.min(weeksSinceStart + 1, 18));
+      week = Math.max(1, Math.min(weeksSinceStart + 1, REGULAR_SEASON_WEEKS));
 
       // Allow picks for next week starting Wednesday (day 3)
       // This aligns with the display logic and gives users time to see results
@@ -171,16 +194,15 @@ class NFLApiService {
       const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
 
       // If it's Wednesday (day 3) or later in the current week, allow picks for next week
-      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < 18) {
+      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < REGULAR_SEASON_WEEKS) {
         week = week + 1;
       }
     } else if (currentMonth <= 1) {
-      // January-February: previous season (playoffs/Super Bowl)
+      // January-February: previous season's playoffs
       season = currentYear - 1;
-      week = 18; // Assume we're in playoffs/post-season
+      week = this.getPlayoffWeek(now);
     } else {
       // March-August: Show upcoming season for picks
-      // Since we're in 2025, show 2025 Season Week 1 for user picks
       season = currentYear;
       week = 1;
     }
@@ -204,7 +226,7 @@ class NFLApiService {
       season = currentYear;
       const seasonStart = new Date(currentYear, 8, 5); // September 5th (typical season start)
       const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
-      week = Math.max(1, Math.min(weeksSinceStart + 1, 18));
+      week = Math.max(1, Math.min(weeksSinceStart + 1, REGULAR_SEASON_WEEKS));
 
       // Dashboard switches to next week on Wednesday (day 3)
       // This aligns with pick availability timing
@@ -213,16 +235,15 @@ class NFLApiService {
       const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
 
       // If it's Wednesday (day 3) or later in the current week, show next week on dashboard
-      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < 18) {
+      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < REGULAR_SEASON_WEEKS) {
         week = week + 1;
       }
     } else if (currentMonth <= 1) {
-      // January-February: previous season (playoffs/Super Bowl)
+      // January-February: previous season's playoffs
       season = currentYear - 1;
-      week = 18; // Assume we're in playoffs/post-season
+      week = this.getPlayoffWeek(now);
     } else {
       // March-August: Show upcoming season for display
-      // Since we're in 2025, show 2025 Season Week 1 for display
       season = currentYear;
       week = 1;
     }
@@ -239,9 +260,46 @@ class NFLApiService {
     return dayOfWeek >= 3;
   }
 
+  // Postseason games from the API aren't split by week the way weeks[] works for the
+  // regular season, so bucket them into rounds (19-22) by date. Uses the API's own week
+  // value when it already looks like a playoff week, otherwise clusters games into
+  // rounds by date gaps (each round is one weekend).
+  bucketPlayoffGames(rawGames) {
+    const buckets = { 19: [], 20: [], 21: [], 22: [] };
+
+    const withKnownWeek = rawGames.filter(g => g.week > REGULAR_SEASON_WEEKS && g.week <= TOTAL_WEEKS);
+    const unknown = rawGames.filter(g => !(g.week > REGULAR_SEASON_WEEKS && g.week <= TOTAL_WEEKS));
+
+    withKnownWeek.forEach(g => buckets[g.week].push(g));
+
+    if (unknown.length > 0) {
+      const sorted = [...unknown].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const rounds = [];
+      let currentRound = [];
+      let lastDate = null;
+      for (const g of sorted) {
+        const gameDate = new Date(g.date);
+        if (lastDate && (gameDate - lastDate) > 3 * 24 * 60 * 60 * 1000) {
+          rounds.push(currentRound);
+          currentRound = [];
+        }
+        currentRound.push(g);
+        lastDate = gameDate;
+      }
+      if (currentRound.length > 0) rounds.push(currentRound);
+
+      rounds.slice(0, 4).forEach((round, idx) => {
+        buckets[19 + idx].push(...round);
+      });
+    }
+
+    return buckets;
+  }
+
   // Fetch NFL schedule for a specific week
   async fetchWeekSchedule(week, season) {
     try {
+      const isPostseason = week > REGULAR_SEASON_WEEKS;
       const cacheKey = `schedule_${season}_${week}`;
       let games = await this.getCachedData(cacheKey);
 
@@ -266,22 +324,24 @@ class NFLApiService {
             headers: {
               'Authorization': this.apiKey
             },
-            params: {
-              'seasons[]': season,
-              'weeks[]': week,
-              'per_page': 100
-            },
+            params: isPostseason
+              ? { 'seasons[]': season, postseason: true, per_page: 100 }
+              : { 'seasons[]': season, 'weeks[]': week, per_page: 100 },
             timeout: 10000 // 10 second timeout
           });
 
           console.log(`🌐 API response: ${response.status}, games found: ${response.data?.data?.length || 0}`);
 
-          if (response.data && response.data.data && response.data.data.length > 0) {
-            games = response.data.data.map(game => {
+          const rawGames = isPostseason
+            ? (this.bucketPlayoffGames(response.data?.data || [])[week] || [])
+            : (response.data?.data || []);
+
+          if (rawGames.length > 0) {
+            games = rawGames.map(game => {
               const quarterInfo = this.parseQuarterTimeInfo(game.status);
               return {
                 id: game.id,
-                week: game.week,
+                week: isPostseason ? week : game.week,
                 season: game.season,
                 home_team_id: game.home_team.id,
                 visitor_team_id: game.visitor_team.id,
@@ -423,14 +483,24 @@ class NFLApiService {
       console.log(`🏈 Fetching full ${season} season schedule...`);
       const allGames = [];
 
-      // Fetch all 18 weeks of the regular season with rate limiting
-      for (let week = 1; week <= 18; week++) {
+      // Fetch all regular season and playoff weeks with rate limiting
+      for (let week = 1; week <= TOTAL_WEEKS; week++) {
         console.log(`  📅 Fetching week ${week}...`);
-        const weekGames = await this.fetchWeekSchedule(week, season);
-        allGames.push(...weekGames);
+        try {
+          const weekGames = await this.fetchWeekSchedule(week, season);
+          allGames.push(...weekGames);
+        } catch (weekError) {
+          // Playoff matchups aren't known until each round is played, so it's normal
+          // for a playoff week to have no data yet - don't abort the whole sync for it.
+          if (week > REGULAR_SEASON_WEEKS) {
+            console.log(`  ⏭️  No data yet for playoff week ${week}, skipping: ${weekError.message}`);
+          } else {
+            throw weekError;
+          }
+        }
 
         // Longer delay to avoid overwhelming the API (1 second between requests)
-        if (week < 18) {
+        if (week < TOTAL_WEEKS) {
           console.log(`    ⏳ Waiting 1 second before next request...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -707,6 +777,7 @@ class NFLApiService {
   async syncWeekSchedule(week, season) {
     try {
       console.log(`Syncing schedule for week ${week}, ${season}...`);
+      const isPostseason = week > REGULAR_SEASON_WEEKS;
 
       // Ensure teams exist before syncing
       const teams = await getAllQuery('SELECT id FROM teams');
@@ -723,7 +794,9 @@ class NFLApiService {
         }
         response = await axios.get(`${this.ballDontLieBaseUrl}/games`, {
           headers: { 'Authorization': this.apiKey },
-          params: { 'seasons[]': season, 'weeks[]': week, 'per_page': 100 },
+          params: isPostseason
+            ? { 'seasons[]': season, postseason: true, per_page: 100 }
+            : { 'seasons[]': season, 'weeks[]': week, per_page: 100 },
           timeout: 15000
         });
       } catch (err) {
@@ -731,9 +804,13 @@ class NFLApiService {
         throw err;
       }
 
-      const remoteGames = (response.data && response.data.data) ? response.data.data.map(g => ({
+      const rawGames = isPostseason
+        ? (this.bucketPlayoffGames(response.data?.data || [])[week] || [])
+        : (response.data?.data || []);
+
+      const remoteGames = rawGames.map(g => ({
         id: g.id,
-        week: g.week,
+        week: isPostseason ? week : g.week,
         season: g.season,
         home_team_id: g.home_team.id,
         visitor_team_id: g.visitor_team.id,
@@ -742,7 +819,7 @@ class NFLApiService {
         home_team_score: typeof g.home_team_score === 'number' ? g.home_team_score : null,
         visitor_team_score: typeof g.visitor_team_score === 'number' ? g.visitor_team_score : null,
         is_tiebreaker_game: 0 // Will be determined after mapping all games
-      })) : [];
+      }));
 
       // Determine tiebreaker game
       const tiebreakerGame = this.determineTiebreakerGame(remoteGames);
@@ -855,17 +932,24 @@ class NFLApiService {
         }
         throw new Error('Rate limit: suppressed live request');
       }
+      const isPostseason = week > REGULAR_SEASON_WEEKS;
       const response = await axios.get(`${this.ballDontLieBaseUrl}/games`, {
         headers: { 'Authorization': this.apiKey },
-        params: { 'seasons[]': season, 'weeks[]': week, 'per_page': 100 },
+        params: isPostseason
+          ? { 'seasons[]': season, postseason: true, per_page: 100 }
+          : { 'seasons[]': season, 'weeks[]': week, per_page: 100 },
         timeout: 10000
       });
 
-      const remoteGames = (response.data && response.data.data) ? response.data.data.map(game => {
+      const rawGames = isPostseason
+        ? (this.bucketPlayoffGames(response.data?.data || [])[week] || [])
+        : (response.data?.data || []);
+
+      const remoteGames = rawGames.map(game => {
         const quarterInfo = this.parseQuarterTimeInfo(game.status);
         return {
           id: game.id,
-          week: game.week,
+          week: isPostseason ? week : game.week,
           season: game.season,
           home_team_id: game.home_team.id,
           visitor_team_id: game.visitor_team.id,
@@ -887,7 +971,7 @@ class NFLApiService {
           quarter_time_remaining: quarterInfo.timeRemaining,
           is_tiebreaker_game: 0 // Will be determined after mapping
         };
-      }) : [];
+      });
 
       // Determine tiebreaker game for live updates
       const tiebreakerGame = this.determineTiebreakerGame(remoteGames);

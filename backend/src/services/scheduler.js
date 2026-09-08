@@ -25,7 +25,7 @@ function scheduleDataFetch() {
       // Fetch current week and next week
       try {
         await nflApiService.fetchWeekSchedule(week, season);
-        if (week < 18) {
+        if (week < 22) { // 22 = Super Bowl, the last playoff week
           await nflApiService.fetchWeekSchedule(week + 1, season);
         }
       } catch (schedErr) {
@@ -45,7 +45,7 @@ function scheduleDataFetch() {
       const { week, season } = nflApiService.getCurrentWeek();
       try {
         await nflApiService.syncWeekSchedule(week, season);
-        if (week < 18) {
+        if (week < 22) { // 22 = Super Bowl, the last playoff week
           await nflApiService.syncWeekSchedule(week + 1, season);
         }
       } catch (err) {

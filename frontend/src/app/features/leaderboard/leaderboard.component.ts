@@ -5,11 +5,12 @@ import { LeaderboardService } from '../../core/services/leaderboard.service';
 import { GameService } from '../../core/services/game.service';
 import { LeaderboardEntry, WeeklyWinner } from '../../core/models/leaderboard.model';
 import { NavigationComponent } from '../../shared/components/navigation.component';
+import { WeekLabelPipe } from '../../shared/pipes/week-label.pipe';
 
 @Component({
   selector: 'app-leaderboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavigationComponent],
+  imports: [CommonModule, FormsModule, NavigationComponent, WeekLabelPipe],
   template: `
     <div class="h-screen bg-gray-50 flex flex-col">
       <!-- Navigation -->
@@ -70,10 +71,10 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
           <!-- Controls section -->
           <div class="flex-shrink-0 px-6 py-4 bg-white border-b">
             <div class="flex flex-col space-y-3 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
-              <h2 class="text-lg font-semibold">Week {{ currentWeek }} Leaderboard</h2>
+              <h2 class="text-lg font-semibold">{{ currentWeek | weekLabel }} Leaderboard</h2>
               <div class="flex space-x-2">
                 <select [(ngModel)]="selectedWeek" (ngModelChange)="loadWeeklyLeaderboard()" class="input-field text-sm">
-                  <option *ngFor="let w of availableWeeks" [value]="w">Week {{ w }}</option>
+                  <option *ngFor="let w of availableWeeks" [value]="w">{{ w | weekLabel }}</option>
                 </select>
               </div>
             </div>
@@ -194,7 +195,7 @@ import { NavigationComponent } from '../../shared/components/navigation.componen
           <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <div *ngFor="let winner of weeklyWinners" class="card p-4 sm:p-6">
               <div class="flex items-center justify-between mb-4">
-                <div class="text-base sm:text-lg font-semibold">Week {{ winner.week }}</div>
+                <div class="text-base sm:text-lg font-semibold">{{ winner.week | weekLabel }}</div>
                 <div class="flex items-center space-x-2">
                   <div class="text-xl sm:text-2xl">🏆</div>
                   <span *ngIf="winner.tiebreakerUsed" class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Tiebreaker</span>
@@ -245,7 +246,7 @@ export class LeaderboardComponent implements OnInit {
   currentWeek = 1;
   currentSeason = 2025;
   selectedWeek = 1;
-  availableWeeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+  availableWeeks = Array.from({ length: 22 }, (_, i) => i + 1);
 
   weeklyLeaderboard: LeaderboardEntry[] = [];
   seasonLeaderboard: LeaderboardEntry[] = [];

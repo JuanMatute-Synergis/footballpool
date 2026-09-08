@@ -10,11 +10,12 @@ import { Game, GamesResponse } from '../../core/models/game.model';
 import { Pick, PicksResponse } from '../../core/models/pick.model';
 import { LeaderboardEntry } from '../../core/models/leaderboard.model';
 import { environment } from '../../../environments/environment';
+import { WeekLabelPipe } from '../../shared/pipes/week-label.pipe';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, WeekLabelPipe],
   template: `
     <div class="min-h-screen bg-gray-50">
       <!-- Navigation -->
@@ -63,7 +64,7 @@ import { environment } from '../../../environments/environment';
                 Welcome back, {{ currentUser?.firstName }}!
               </h2>
               <p class="mt-4 text-xl text-gray-600">
-                NFL Picks - Week {{ currentWeek }} of {{ currentSeason }}
+                NFL Picks - {{ currentWeek | weekLabel }} of {{ currentSeason }}
               </p>
             </div>
 
@@ -133,7 +134,7 @@ import { environment } from '../../../environments/environment';
             <div class="card">
               <div class="p-6 border-b">
                 <div class="flex justify-between items-center">
-                  <h3 class="text-lg font-semibold">Week {{ currentWeek }} Games</h3>
+                  <h3 class="text-lg font-semibold">{{ currentWeek | weekLabel }} Games</h3>
                   <span class="text-sm text-gray-600">{{ completedGamesCount }}/{{ totalGames }} completed</span>
                 </div>
               </div>
@@ -252,7 +253,7 @@ import { environment } from '../../../environments/environment';
               <div class="card">
                 <div class="p-6 border-b">
                   <div class="flex justify-between items-center">
-                    <h3 class="text-lg font-semibold">Week {{ currentWeek }} Leaders</h3>
+                    <h3 class="text-lg font-semibold">{{ currentWeek | weekLabel }} Leaders</h3>
                     <button (click)="router.navigate(['/leaderboard'])" class="text-blue-600 hover:text-blue-800 text-sm">
                       View Full →
                     </button>
