@@ -14,6 +14,8 @@ COPY frontend/package*.json ./frontend/
 COPY frontend/angular.json ./frontend/
 COPY frontend/tsconfig*.json ./frontend/
 COPY frontend/tailwind.config.js ./frontend/
+# Service worker config: the production build reads this via ngswConfigPath
+COPY frontend/ngsw-config.json ./frontend/
 
 # Install backend dependencies
 WORKDIR /app/backend

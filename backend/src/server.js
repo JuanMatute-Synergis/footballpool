@@ -149,17 +149,49 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), rateLimit429Count });
 });
 
+// Files that must always be revalidated. The Angular service worker checks
+// ngsw.json on every load to decide whether a new build exists, so if any of
+// these are cached, clients get pinned to a stale version of the app.
+const NEVER_CACHE = new Set([
+  'index.html',
+  'ngsw.json',
+  'ngsw-worker.js',
+  'safety-worker.js',
+  'worker-basic.min.js',
+  'manifest.webmanifest'
+]);
+
+// Angular's output hashing, e.g. main.3ab79d6241879b3f.js -- these are safe to
+// cache forever. Files under assets/ keep stable names and are not.
+const HASHED_BUNDLE = /\.[0-9a-f]{16,}\.(js|css)$/;
+
 // Serve Angular frontend in production
 if (process.env.NODE_ENV === 'production') {
   // Serve static files from the frontend dist folder
   app.use(express.static(path.join(__dirname, '..', 'public'), {
-    maxAge: '1d',
-    etag: false,
-    setHeaders: (res, path) => {
-      if (path.endsWith('.js')) {
+    etag: true,
+    // No blanket maxAge: it is set per file in setHeaders below, because the
+    // service worker's control files need very different treatment from the
+    // content-hashed bundles.
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.js')) {
         res.setHeader('Content-Type', 'application/javascript');
-      } else if (path.endsWith('.css')) {
+      } else if (filePath.endsWith('.css')) {
         res.setHeader('Content-Type', 'text/css');
+      } else if (filePath.endsWith('.webmanifest')) {
+        res.setHeader('Content-Type', 'application/manifest+json');
+      }
+
+      const name = path.basename(filePath);
+      if (NEVER_CACHE.has(name)) {
+        res.setHeader('Cache-Control', 'no-cache');
+      } else if (HASHED_BUNDLE.test(name)) {
+        // Content hash in the filename, so this URL's bytes never change.
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        // Everything under assets/ keeps its filename across builds (icons,
+        // fonts). A day, revalidated by ETag, so regenerated icons still land.
+        res.setHeader('Cache-Control', 'public, max-age=86400');
       }
     }
   }));
@@ -170,6 +202,13 @@ if (process.env.NODE_ENV === 'production') {
     if (req.url.startsWith('/api/') || req.url.startsWith('/health') || req.url.startsWith('/team-logos/')) {
       return res.status(404).json({ message: 'API route not found' });
     }
+    // Service worker control files must 404 honestly when missing. Falling
+    // through to index.html would hand the service worker HTML where it
+    // expects JSON, which breaks update checks in confusing ways.
+    if (NEVER_CACHE.has(path.basename(req.path)) && req.path !== '/index.html') {
+      return res.status(404).json({ message: 'Not found' });
+    }
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
   });
 }

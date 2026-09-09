@@ -53,3 +53,66 @@ img[alt]::before {
   display: inline-block;
   font-size: 0.8em;
 }
+
+/* ==========================================================================
+   Installed-app (PWA) behaviour
+   PwaService puts `app-standalone` on <html> when launched from the home
+   screen. Everything below keys off that, so the browser-tab experience is
+   unchanged.
+   ========================================================================== */
+
+:root {
+  /* Height reserved at the bottom of the viewport for the tab bar. */
+  --app-tabbar-h: 0px;
+}
+
+html.app-standalone {
+  /* 3.5rem row (h-14) + the iPhone home indicator. */
+  --app-tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Keep full-height layouts clear of the fixed tab bar. Overriding the two
+   Tailwind utilities here beats editing the seven feature components that use
+   them, and these rules come after @tailwind utilities so they win at equal
+   specificity.
+
+   Switching to dvh also fixes the long-standing mobile-browser problem where
+   100vh includes the collapsing URL bar and the page ends up slightly too tall. */
+.h-screen {
+  height: calc(100dvh - var(--app-tabbar-h));
+}
+
+.min-h-screen {
+  min-height: calc(100dvh - var(--app-tabbar-h));
+}
+
+html.app-standalone {
+  /* Stop the whole page rubber-banding away from the top bar, which
+     immediately reads as "this is a web page". */
+  overscroll-behavior-y: none;
+
+  body {
+    /* Clear the notch / status bar; the OS no longer draws browser chrome there. */
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* Touch polish. Applied everywhere -- it improves the mobile web experience
+   too, not just the installed app. */
+body {
+  /* No grey flash box on tap. */
+  -webkit-tap-highlight-color: transparent;
+  /* Removes the 300ms double-tap-to-zoom delay. Pinch zoom still works. */
+  touch-action: manipulation;
+}
+
+/* Text selection on buttons and nav looks like a bug in an installed app,
+   but must stay available for actual content. */
+button,
+nav,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+

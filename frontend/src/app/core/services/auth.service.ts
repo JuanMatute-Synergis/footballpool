@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -8,6 +8,7 @@ import {
   RegisterRequest,
   User
 } from '../models/auth.model';
+import { PwaService } from './pwa.service';
 
 @Injectable({
   providedIn: 'root'
@@ -17,6 +18,8 @@ export class AuthService {
   public currentUser$ = this.currentUserSubject.asObservable();
 
   private tokenKey = 'nfl_picks_token';
+
+  private pwa = inject(PwaService);
 
   constructor(private http: HttpClient) {
     // Don't initialize here - let APP_INITIALIZER handle it
@@ -87,6 +90,9 @@ export class AuthService {
   logout(): void {
     this.removeToken();
     this.currentUserSubject.next(null);
+    // Drop service-worker cached API responses so the next person to sign in on
+    // this device can't be served the previous user's data while offline.
+    this.pwa.clearApiCaches();
   }
 
   getProfile(): Observable<{ user: User }> {

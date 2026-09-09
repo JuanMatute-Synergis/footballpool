@@ -1,0 +1,58 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/index.html",
+          "/manifest.webmanifest",
+          "/*.css",
+          "/*.js"
+        ]
+      }
+    },
+    {
+      "name": "assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/assets/**",
+          "/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
+        ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "api-reads",
+      "comment": "Only non-user-scoped GETs. /api/picks/** is deliberately absent: the SW caches by URL with no notion of who is signed in, so caching it could surface one user's picks to the next person to sign in on a shared device. /api/auth/** and /api/admin/** are absent for the same reason -- unlisted URLs bypass the SW entirely.",
+      "urls": [
+        "/api/games/**",
+        "/api/leaderboard/**"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "timeout": "5s",
+        "maxAge": "1h",
+        "maxSize": 100
+      }
+    },
+    {
+      "name": "team-logos",
+      "urls": [
+        "/team-logos/**",
+        "/api/team-logos/**"
+      ],
+      "cacheConfig": {
+        "strategy": "performance",
+        "maxAge": "30d",
+        "maxSize": 60
+      }
+    }
+  ]
+}

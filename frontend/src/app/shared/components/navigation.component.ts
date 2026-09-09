@@ -2,6 +2,7 @@ import { Component, Input, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { PwaService } from '../../core/services/pwa.service';
 
 @Component({
   selector: 'app-navigation',
@@ -33,9 +34,9 @@ import { AuthService } from '../../core/services/auth.service';
           </div>
           
           <div class="flex items-center space-x-4">
-            <!-- Mobile Menu Button -->
-            <div class="md:hidden">
-              <button 
+            <!-- Mobile Menu Button (the bottom tab bar replaces it when installed) -->
+            <div class="md:hidden" *ngIf="!isStandalone">
+              <button
                 (click)="toggleMobileMenu(); $event.stopPropagation()"
                 class="text-gray-600 hover:text-gray-900 p-2 transition-colors">
                 <svg *ngIf="!showMobileMenu" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,6 +105,15 @@ import { AuthService } from '../../core/services/auth.service';
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                       </svg>
                       <span>Profile Settings</span>
+                    </button>
+                    <button
+                      *ngIf="canInstall"
+                      (click)="installApp()"
+                      class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path>
+                      </svg>
+                      <span>Install app</span>
                     </button>
                     <div class="border-t border-gray-100"></div>
                     <button 
@@ -175,6 +185,7 @@ export class NavigationComponent {
   @Input() subtitle: string = '';
 
   private authService = inject(AuthService);
+  private pwa = inject(PwaService);
   public router = inject(Router);
 
   showDropdown = false;
@@ -182,6 +193,20 @@ export class NavigationComponent {
 
   get currentUser() {
     return this.authService.currentUser;
+  }
+
+  /** Already running from the home screen -- the tab bar handles navigation. */
+  get isStandalone(): boolean {
+    return this.pwa.isStandalone;
+  }
+
+  get canInstall(): boolean {
+    return this.pwa.canOfferInstall;
+  }
+
+  installApp() {
+    this.showDropdown = false;
+    this.pwa.reopenInstallBanner();
   }
 
   get pageTitle() {

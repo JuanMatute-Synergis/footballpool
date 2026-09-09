@@ -107,6 +107,8 @@ typings/
 /backend/public/*.txt
 /backend/public/index.html
 /backend/public/assets/
+/backend/public/ngsw.json
+/backend/public/manifest.webmanifest
 !/backend/public/team-logos/
 
 # IDEs and editors
@@ -137,3 +139,6 @@ fetch-*.js
 # Temporary files
 *.tmp
 *.temp
+
+# Local Claude Code tooling (launch configs, scratch state)
+.claude/

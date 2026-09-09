@@ -2,8 +2,10 @@ import { ApplicationConfig, importProvidersFrom, APP_INITIALIZER } from '@angula
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { provideServiceWorker } from '@angular/service-worker';
 
 import { routes } from './app.routes';
+import { environment } from '../environments/environment';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { AuthService } from './core/services/auth.service';
 
@@ -26,6 +28,12 @@ export const appConfig: ApplicationConfig = {
       useFactory: initializeAuth,
       deps: [AuthService],
       multi: true
-    }
+    },
+    // Dev builds stay service-worker free; ngsw-worker.js is only emitted by
+    // the production configuration.
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: environment.production,
+      registrationStrategy: 'registerWhenStable:30000'
+    })
   ]
 };
