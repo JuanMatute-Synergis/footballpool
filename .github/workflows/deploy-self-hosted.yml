@@ -37,10 +37,13 @@ jobs:
           fi
         done
         
-        if docker compose version > /dev/null 2>&1; then
-          echo "COMPOSE=docker compose" >> "$GITHUB_ENV"
-        elif command -v docker-compose > /dev/null 2>&1; then
+        # Prefer the standalone docker-compose binary. `docker compose` is a CLI plugin
+        # discovered through DOCKER_CONFIG, and the build step swaps DOCKER_CONFIG for a
+        # throwaway dir to bypass credential helpers — which makes the subcommand vanish.
+        if command -v docker-compose > /dev/null 2>&1; then
           echo "COMPOSE=docker-compose" >> "$GITHUB_ENV"
+        elif docker compose version > /dev/null 2>&1; then
+          echo "COMPOSE=docker compose" >> "$GITHUB_ENV"
         else
           echo "❌ Neither 'docker compose' nor 'docker-compose' is available on this runner"
           exit 1
@@ -156,9 +159,13 @@ jobs:
         docker logout || true
         docker system prune -f || true
         
-        # Set Docker to not use credential helpers for this build
+        # Set Docker to not use credential helpers for this build, while still pointing
+        # the CLI at the real plugin directories so `docker compose` keeps resolving.
+        PLUGIN_DIRS="${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
         export DOCKER_CONFIG=$(mktemp -d)
-        echo '{}' > "$DOCKER_CONFIG/config.json"
+        cat > "$DOCKER_CONFIG/config.json" <<EOF
+        {"cliPluginsExtraDirs": ["$PLUGIN_DIRS", "/usr/local/lib/docker/cli-plugins", "/opt/homebrew/lib/docker/cli-plugins"]}
+        EOF
         
         $COMPOSE build --no-cache
 
