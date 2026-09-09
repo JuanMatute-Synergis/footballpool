@@ -5,13 +5,46 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Only one deploy at a time; a queued deploy waits rather than racing the running one.
+concurrency:
+  group: deploy-self-hosted
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: self-hosted
-    
+    timeout-minutes: 30
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Resolve docker compose command
+      timeout-minutes: 5
+      run: |
+        # Docker Desktop may still be starting after a reboot; give it a bounded wait
+        # rather than letting the build step block on an unreachable daemon.
+        for i in $(seq 1 30); do
+          if docker info > /dev/null 2>&1; then
+            echo "✅ Docker daemon is ready"
+            break
+          fi
+          echo "⏳ Waiting for Docker daemon... ($i/30)"
+          sleep 5
+          if [ "$i" -eq 30 ]; then
+            echo "❌ Docker daemon is not responding on this runner"
+            exit 1
+          fi
+        done
+        
+        if docker compose version > /dev/null 2>&1; then
+          echo "COMPOSE=docker compose" >> "$GITHUB_ENV"
+        elif command -v docker-compose > /dev/null 2>&1; then
+          echo "COMPOSE=docker-compose" >> "$GITHUB_ENV"
+        else
+          echo "❌ Neither 'docker compose' nor 'docker-compose' is available on this runner"
+          exit 1
+        fi
 
     - name: Setup data directory with absolute path
       run: |
@@ -110,11 +143,14 @@ jobs:
         fi
 
     - name: Build new image safely
+      timeout-minutes: 15
       run: |
         echo "Building new container image (data directory excluded via .dockerignore)..."
         
-        # Unlock keychain to resolve Docker credential issues
-        security -v unlock-keychain ~/Library/Keychains/login.keychain-db || echo "Keychain unlock failed, continuing..."
+        # Unlock keychain to resolve Docker credential issues.
+        # stdin is closed so a missing password prompts nothing and fails fast instead of
+        # hanging the job forever waiting on a tty that a runner service does not have.
+        security -v unlock-keychain ~/Library/Keychains/login.keychain-db < /dev/null || echo "Keychain unlock failed, continuing..."
         
         # Clear Docker credentials and cache
         docker logout || true
@@ -124,15 +160,14 @@ jobs:
         export DOCKER_CONFIG=$(mktemp -d)
         echo '{}' > "$DOCKER_CONFIG/config.json"
         
-        # Use docker-compose (with hyphen) instead of docker compose
-        docker-compose build --no-cache
+        $COMPOSE build --no-cache
 
     - name: Deploy with zero-downtime data protection
       run: |
         echo "Performing zero-downtime deployment..."
         
         # Stop current container gracefully
-        docker-compose stop nfl-picks || true
+        $COMPOSE stop nfl-picks || true
         sleep 3
         
         # Verify data is still intact after stopping
@@ -150,7 +185,7 @@ jobs:
         
         # Start new container
         echo "Starting new container with volume mount verification..."
-        docker-compose up -d nfl-picks
+        $COMPOSE up -d nfl-picks
         
         # Wait longer for proper volume mount and database initialization
         echo "Waiting for container to fully initialize with volume mount..."
@@ -158,7 +193,7 @@ jobs:
         
         # Check container logs for startup issues
         echo "=== Container startup logs ==="
-        docker-compose logs --tail=10 nfl-picks
+        $COMPOSE logs --tail=10 nfl-picks
         
         # Critical data integrity check with more attempts and patience  
         max_attempts=5
@@ -175,15 +210,15 @@ jobs:
           else
             echo "❌ Attempt $attempt/$max_attempts: User count is $user_count"
             echo "Container status:"
-            docker-compose ps
+            $COMPOSE ps
             echo "Recent container logs:"
-            docker-compose logs --tail=5 nfl-picks
+            $COMPOSE logs --tail=5 nfl-picks
             
             if [ $attempt -eq $max_attempts ]; then
               echo "🚨 EMERGENCY: Deploying data recovery procedures"
               
               # Emergency stop and restore
-              docker-compose down
+              $COMPOSE down
               DATA_DIR="/Users/juanmatute/data/nfl-picks"
               
               # Try multiple backup sources in order of preference
@@ -193,7 +228,7 @@ jobs:
               if [ -f "$DATA_DIR/database.sqlite.pre-deploy" ]; then
                 echo "Restoring from pre-deployment backup..."
                 cp "$DATA_DIR/database.sqlite.pre-deploy" "$DATA_DIR/database.sqlite"
-                docker-compose up -d nfl-picks
+                $COMPOSE up -d nfl-picks
                 sleep 15
                 
                 # Verify emergency restoration
@@ -211,7 +246,7 @@ jobs:
                 if [ -f "$emergency_backup" ]; then
                   echo "Restoring from emergency backup: $emergency_backup"
                   cp "$emergency_backup" "$DATA_DIR/database.sqlite"
-                  docker-compose up -d nfl-picks
+                  $COMPOSE up -d nfl-picks
                   sleep 15
                   
                   user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
@@ -229,7 +264,7 @@ jobs:
                 if [ -f "$recent_backup" ]; then
                   echo "Restoring from recent backup: $recent_backup"
                   cp "$recent_backup" "/Users/juanmatute/data/nfl-picks/database.sqlite"
-                  docker-compose up -d nfl-picks
+                  $COMPOSE up -d nfl-picks
                   sleep 15
                   
                   user_count=$(curl -s http://localhost:3001/api/auth/health | jq -r '.user_count // "0"' 2>/dev/null || echo "0")
@@ -248,6 +283,9 @@ jobs:
                 ls -la ./backups/ 2>/dev/null || echo "No emergency backups found"
                 exit 1
               fi
+              
+              # Restored — leave the retry loop instead of spinning on the last attempt forever
+              break
             else
               echo "Retrying in 20 seconds..."
               sleep 20
@@ -289,7 +327,7 @@ jobs:
         
         echo "=== Final verification ==="
         # Check if containers are running
-        docker-compose ps
+        $COMPOSE ps
         
         # Check database integrity
         if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite" ]; then
@@ -314,9 +352,9 @@ jobs:
                 # Emergency restoration from pre-deployment backup
                 if [ -f "/Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy" ]; then
                   echo "🚨 Attempting emergency restoration from pre-deployment backup..."
-                  docker-compose down
+                  $COMPOSE down
                   cp /Users/juanmatute/data/nfl-picks/database.sqlite.pre-deploy /Users/juanmatute/data/nfl-picks/database.sqlite
-                  docker-compose up -d
+                  $COMPOSE up -d
                   sleep 15
                   
                   # Verify restoration
@@ -325,6 +363,7 @@ jobs:
                   
                   if [ "$user_count" != "0" ]; then
                     echo "✅ Emergency restoration successful"
+                    break
                   else
                     echo "❌ Emergency restoration failed"
                     exit 1
@@ -358,7 +397,7 @@ jobs:
         echo "Performing health check..."
         
         # Show container status
-        docker-compose ps
+        $COMPOSE ps
         
         # Try health check with retries
         for i in {1..5}; do
@@ -375,7 +414,7 @@ jobs:
             if [ $i -eq 5 ]; then
               echo "❌ All health check attempts failed"
               echo "Container logs:"
-              docker-compose logs --tail=20
+              $COMPOSE logs --tail=20
               exit 1
             fi
             sleep 10
@@ -386,6 +425,6 @@ jobs:
       if: failure()
       run: |
         echo "=== Deployment Failed - Container Status ==="
-        docker-compose ps
+        $COMPOSE ps
         echo "=== Container Logs ==="
-        docker-compose logs --tail=50
+        $COMPOSE logs --tail=50

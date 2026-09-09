@@ -1,8 +1,9 @@
 # Use Node.js as base image
 FROM node:18-alpine
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install curl for health checks and tzdata so NFL week math runs in US Eastern time
+RUN apk add --no-cache curl tzdata
+ENV TZ=America/New_York
 
 # Set working directory
 WORKDIR /app

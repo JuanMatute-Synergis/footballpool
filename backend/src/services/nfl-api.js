@@ -169,6 +169,35 @@ class NFLApiService {
     return TOTAL_WEEKS; // Super Bowl (after the bye week)
   }
 
+  // Thursday-night kickoff of Week 1: the first Thursday after Labor Day (first Monday
+  // of September). 2025 -> Sep 4, 2026 -> Sep 10.
+  getSeasonKickoff(season) {
+    const laborDay = new Date(season, 8, 1); // September 1st
+    while (laborDay.getDay() !== 1) {
+      laborDay.setDate(laborDay.getDate() + 1);
+    }
+
+    const kickoff = new Date(laborDay);
+    kickoff.setDate(kickoff.getDate() + 3); // Thursday after Labor Day
+    kickoff.setHours(0, 0, 0, 0);
+    return kickoff;
+  }
+
+  // Regular-season week for a September-December date. A week becomes current on the
+  // Wednesday before its Thursday kickoff, which is when picks for it open and when the
+  // dashboard rolls over from the previous week's results.
+  getRegularSeasonWeek(now, season) {
+    const firstRollover = this.getSeasonKickoff(season);
+    firstRollover.setDate(firstRollover.getDate() - 1); // Wednesday before Week 1
+
+    if (now < firstRollover) {
+      return 1;
+    }
+
+    const weeksElapsed = Math.floor((now - firstRollover) / (7 * 24 * 60 * 60 * 1000));
+    return Math.min(weeksElapsed + 1, REGULAR_SEASON_WEEKS);
+  }
+
   // Get current NFL week (allows picks for next week starting Wednesday)
   getCurrentWeek() {
     const now = new Date();
@@ -183,20 +212,7 @@ class NFLApiService {
     if (currentMonth >= 8) {
       // September-December: current season
       season = currentYear;
-      const seasonStart = new Date(currentYear, 8, 5); // September 5th (typical season start)
-      const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
-      week = Math.max(1, Math.min(weeksSinceStart + 1, REGULAR_SEASON_WEEKS));
-
-      // Allow picks for next week starting Wednesday (day 3)
-      // This aligns with the display logic and gives users time to see results
-      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-      const currentWeekStart = this.getWeekStartDate(week, season);
-      const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
-
-      // If it's Wednesday (day 3) or later in the current week, allow picks for next week
-      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < REGULAR_SEASON_WEEKS) {
-        week = week + 1;
-      }
+      week = this.getRegularSeasonWeek(now, season);
     } else if (currentMonth <= 1) {
       // January-February: previous season's playoffs
       season = currentYear - 1;
@@ -224,20 +240,7 @@ class NFLApiService {
     if (currentMonth >= 8) {
       // September-December: current season
       season = currentYear;
-      const seasonStart = new Date(currentYear, 8, 5); // September 5th (typical season start)
-      const weeksSinceStart = Math.floor((now - seasonStart) / (7 * 24 * 60 * 60 * 1000));
-      week = Math.max(1, Math.min(weeksSinceStart + 1, REGULAR_SEASON_WEEKS));
-
-      // Dashboard switches to next week on Wednesday (day 3)
-      // This aligns with pick availability timing
-      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-      const currentWeekStart = this.getWeekStartDate(week, season);
-      const daysIntoWeek = Math.floor((now - currentWeekStart) / (24 * 60 * 60 * 1000));
-
-      // If it's Wednesday (day 3) or later in the current week, show next week on dashboard
-      if (dayOfWeek >= 3 && daysIntoWeek >= 3 && week < REGULAR_SEASON_WEEKS) {
-        week = week + 1;
-      }
+      week = this.getRegularSeasonWeek(now, season);
     } else if (currentMonth <= 1) {
       // January-February: previous season's playoffs
       season = currentYear - 1;
@@ -623,7 +626,7 @@ class NFLApiService {
       { day: 0, hour: 16, minute: 25 }, // Sunday 4:25 PM
       { day: 0, hour: 16, minute: 25 }, // Sunday 4:25 PM
       { day: 0, hour: 20, minute: 20 }, // Sunday 8:20 PM
-      { day: 4, hour: 20, minute: 15 }, // Thursday 8:15 PM
+      { day: -3, hour: 20, minute: 15 }, // Thursday 8:15 PM (before the Sunday slate)
       { day: 1, hour: 20, minute: 15 }, // Monday 8:15 PM
       { day: 0, hour: 13 }, // Sunday 1:00 PM
       { day: 0, hour: 13 }, // Sunday 1:00 PM
@@ -671,16 +674,11 @@ class NFLApiService {
 
   // Get the Sunday of the given NFL week
   getWeekStartDate(week, season) {
-    // NFL season typically starts the first Sunday after Labor Day
-    const seasonStart = new Date(season, 8, 1); // September 1st
-    const firstSunday = new Date(seasonStart);
+    // Week 1 kicks off the Thursday after Labor Day; its Sunday slate is 3 days later.
+    const firstSunday = this.getSeasonKickoff(season);
+    firstSunday.setDate(firstSunday.getDate() + 3);
 
-    // Find first Sunday of September
-    while (firstSunday.getDay() !== 0) {
-      firstSunday.setDate(firstSunday.getDate() + 1);
-    }
-
-    // Week 1 starts on the first Sunday, add weeks from there
+    // Add whole weeks from there
     const weekStart = new Date(firstSunday);
     weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
 

@@ -483,12 +483,27 @@ export class AdminComponent implements OnInit {
     this.loadData();
 
     // Initialize current week based on today's date
-    const now = new Date();
-    const seasonStart = new Date(now.getFullYear(), 8, 1); // September 1st
-    if (now >= seasonStart) {
-      const weeksPassed = Math.floor((now.getTime() - seasonStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      this.picksWeek = Math.min(Math.max(weeksPassed + 1, 1), 22);
+    this.picksWeek = this.currentRegularSeasonWeek(new Date());
+  }
+
+  // Mirrors the backend: Week 1 kicks off the Thursday after Labor Day, and a week
+  // becomes current on the Wednesday before its kickoff.
+  private currentRegularSeasonWeek(now: Date): number {
+    const laborDay = new Date(now.getFullYear(), 8, 1); // September 1st
+    while (laborDay.getDay() !== 1) {
+      laborDay.setDate(laborDay.getDate() + 1);
     }
+
+    const firstRollover = new Date(laborDay);
+    firstRollover.setDate(firstRollover.getDate() + 2); // Wednesday before Week 1 kickoff
+    firstRollover.setHours(0, 0, 0, 0);
+
+    if (now < firstRollover) {
+      return 1;
+    }
+
+    const weeksElapsed = Math.floor((now.getTime() - firstRollover.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    return Math.min(weeksElapsed + 1, 18);
   }
 
   loadData() {
